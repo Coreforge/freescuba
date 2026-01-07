@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <stdint.h>
 
 #define FREESCUBA_PIPE_NAME "\\\\.\\pipe\\FreeScubaDriver"
@@ -130,6 +131,23 @@ namespace protocol {
 		uint16_t pinkyRootRaw;
 		uint16_t pinkyTipRaw;
 
+		/*uint16_t pinkyRoot1Raw;
+		uint16_t pinkyTipRaw;
+		uint16_t pinkyRoot2Raw;
+		uint16_t ringRoot1Raw;
+		uint16_t ringTipRaw;
+		uint16_t ringRoot2Raw;
+		uint16_t middleRoot1Raw;
+		uint16_t middleTipRaw;
+		uint16_t middleRoot2Raw;
+		uint16_t indexRoot1Raw;
+		uint16_t indexTipRaw;
+		uint16_t indexRoot2Raw;
+		uint16_t thumbBendRaw;
+		uint16_t thumbTipRaw;
+		uint16_t thumbBend2Raw;
+		uint16_t thumbRootRaw;*/
+
 		float thumbRoot;
 		float thumbTip;
 		float indexRoot;
@@ -147,6 +165,10 @@ namespace protocol {
 		bool buttonUp;
 		bool buttonDown;
 		bool joystickClick;
+		bool systemButton;
+		bool triggerClick;
+		uint8_t triggerRaw;
+		float trigger;
 		uint16_t joystickXRaw;
 		uint16_t joystickYRaw;
 		float joystickX;
@@ -206,6 +228,11 @@ namespace protocol {
 				uint16_t YNeutral;
 				float forwardAngle;
 			} joystick;
+
+			struct TriggerCalibration_t{
+				uint8_t min;
+				uint8_t max;
+			} trigger;
 
 			struct PoseOffset_t {
 				vr::HmdVector3d_t pos;

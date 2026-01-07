@@ -1,21 +1,27 @@
 #include "one_euro_filter.hpp"
 #include <cmath>
+#ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#endif
+#include <chrono>
 
 #define MATH_PI       3.14159265358979323846
 
 // Returns instantaneous system time in seconds
 double GetSystemTimeSeconds() {
 
-    LARGE_INTEGER t1 = {};
+    /*LARGE_INTEGER t1 = {};
     LARGE_INTEGER freq = {};
 
     // High resolution windows only clocks
     QueryPerformanceCounter(&t1);
-    QueryPerformanceFrequency(&freq);
+    QueryPerformanceFrequency(&freq);*/
 
-    return static_cast<double>(t1.QuadPart) / static_cast<double>(freq.QuadPart);
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count() / 1000000.;
+    
+
+    //return static_cast<double>(t1.QuadPart) / static_cast<double>(freq.QuadPart);
 }
 
 OneEuroFilter::OneEuroFilter(

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <cstdint>
 
 /*
 
@@ -34,10 +35,12 @@ constexpr uint8_t DEVICES_STATUS							= 0x1E;
 constexpr uint8_t GLOVE_POWER_ON_PACKET						= 0x64;
 
 constexpr uint8_t GLOVE_RIGHT_PACKET_DATA					= 0x02; // 8  bytes
+constexpr uint8_t GLOVE_RIGHT_PACKET_DATA_2					= 0x16; // 8  bytes
 constexpr uint8_t GLOVE_RIGHT_PACKET_FINGERS				= 0x05; // 23 bytes
 constexpr uint8_t GLOVE_RIGHT_PACKET_IMU					= 0x0B; // 11 bytes
 
 constexpr uint8_t GLOVE_LEFT_PACKET_DATA					= 0x01; // 8  bytes
+constexpr uint8_t GLOVE_LEFT_PACKET_DATA_2					= 0x15; // 8  bytes
 constexpr uint8_t GLOVE_LEFT_PACKET_FINGERS					= 0x04; // 23 bytes
 constexpr uint8_t GLOVE_LEFT_PACKET_IMU						= 0x0A; // 11 bytes
 
@@ -47,6 +50,15 @@ constexpr uint8_t CONTACT_GLOVE_INPUT_MASK_BUTTON_UP		= 0b00000010;
 constexpr uint8_t CONTACT_GLOVE_INPUT_MASK_BUTTON_DOWN		= 0b00000001;
 constexpr uint8_t CONTACT_GLOVE_INPUT_MASK_JOYSTICK_CLICK	= 0b00000100;
 constexpr uint8_t CONTACT_GLOVE_INPUT_MASK_MAGNETRA_PRESENT	= 0b00100000;
+
+constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP			= 0b00000001;	// on button 2, mask works
+constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_DOWN		= 0b00001000;
+constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_BUTTON_UP			= 0b00000010;
+constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_BUTTON_DOWN		= 0b00000001;
+constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_JOYSTICK_CLICK		= 0b10000000;	// on button 2, mask works
+constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_MAGNETRA_PRESENT	= 0b00010000;	// unknown if this is correct
+constexpr uint8_t CONTACT_GLOVE_2_INPUT_SYSTEM_BUTTON = 0xb9;	// on button 2, fixed value
+constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_TRIGGER_CLICK		= 0b00000100;
 
 constexpr uint8_t CONTACT_GLOVE_INVALID_BATTERY				= 0xFF;
 constexpr uint32_t GLOVE_BATTERY_THRESHOLD					= 5;
@@ -66,8 +78,11 @@ public:
 	bool buttonUp;
 	bool buttonDown;
 	bool joystickClick;
+	bool systemButton;
+	bool triggerClick;
 	uint16_t joystickX;
 	uint16_t joystickY;
+	uint8_t trigger;
 };
 struct DevicesFirmware_t {
 public:
@@ -97,6 +112,29 @@ public:
 	uint16_t fingerPinkyTip;
 	uint16_t fingerPinkyRoot;
 };
+
+#pragma pack(push, 1)
+struct GlovePacketFingers2_t{
+	uint16_t unknown1;
+	uint16_t fingerPinkyRoot1;
+	uint16_t fingerPinkyTip;
+	uint16_t fingerPinkyRoot2;
+	uint16_t fingerRingRoot1;
+	uint16_t fingerRingTip;
+	uint16_t fingerRingRoot2;
+	uint16_t fingerMiddleRoot1;
+	uint16_t fingerMiddleTip;
+	uint16_t fingerMiddleRoot2;
+	uint16_t fingerIndexRoot1;
+	uint16_t fingerIndexTip;
+	uint16_t fingerIndexRoot2;
+	uint16_t fingerThumbBend;
+	uint16_t fingerThumbTip;
+	uint16_t fingerThumbBend2;
+	uint16_t fingerThumbRoot;
+	uint16_t unknown2;
+};
+#pragma pack(pop)
 
 struct GlovePacketImu_t {
 public:
@@ -129,7 +167,7 @@ public:
 	PacketType_t type;
 	union ContactGlovePacket {
 		GloveInputData_t		gloveData;
-		GlovePacketFingers_t	gloveFingers;
+		GlovePacketFingers2_t	gloveFingers;
 		GlovePacketImu_t		gloveImu;
 		DevicesFirmware_t		firmware;
 		DevicesStatus_t			status;

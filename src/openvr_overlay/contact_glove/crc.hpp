@@ -94,7 +94,7 @@
   */
 
 #include <stdint.h>
-
+#include <cstddef>
 
 
 #define TRUE    1

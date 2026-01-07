@@ -1,5 +1,22 @@
 #include "serial_communication.hpp"
+#include "contact_glove_structs.hpp"
+#include "crc.hpp"
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <string>
+#include <sys/types.h>
+#ifdef WIN32
 #include <SetupAPI.h>
+#else 
+#include <fcntl.h>
+#include <termios.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#endif
+
+#include <cstring>
+#include <filesystem>
 
 #include <chrono>
 #include "cobs.hpp"
@@ -22,6 +39,7 @@ static void PrintBuffer(const std::string name, const uint8_t* buffer, const siz
     std::cout << " };" << std::endl;
 }
 
+#ifdef WIN32
 int SerialCommunicationManager::GetComPort() const {
 
     HDEVINFO DeviceInfoSet;
@@ -100,8 +118,10 @@ int SerialCommunicationManager::GetComPort() const {
 
     return -1;
 }
+#endif
 
 static std::string GetLastErrorAsString() {
+    #ifdef WIN32
     DWORD errorMessageID = ::GetLastError();
     if (errorMessageID == 0) {
         return std::string();
@@ -123,8 +143,11 @@ static std::string GetLastErrorAsString() {
     LocalFree(messageBuffer);
 
     return message;
+    #endif
+    return strerror(errno);
 }
 
+#ifdef WIN32
 bool SerialCommunicationManager::SetCommunicationTimeout(
     const uint32_t ReadIntervalTimeout,
     const uint32_t ReadTotalTimeoutMultiplier,
@@ -146,8 +169,10 @@ bool SerialCommunicationManager::SetCommunicationTimeout(
 
     return true;
 }
+#endif
 
 bool SerialCommunicationManager::Connect() {
+#ifdef WIN32
     // We're not yet connected
     m_isConnected = false;
 
@@ -216,6 +241,66 @@ bool SerialCommunicationManager::Connect() {
 
     LogMessage("Successfully connected to dongle");
     return true;
+#else
+    m_isConnected = false;
+    LogMessage("Attempting connection to dongle...");
+
+    #warning "Hardcoded device path for now, replace!"
+    std::filesystem::path path = "/dev/ttyContactGloves";
+    serial_fd = open(path.c_str(), O_RDWR);
+    if(serial_fd < 0){
+        LogError((std::string("Failed to open serial port: ") + std::to_string(errno)).c_str());
+        return false;
+    }
+
+    struct termios tty;
+    if(tcgetattr(serial_fd, &tty) != 0){
+        LogError((std::string("Failed to get serial port attributes: ") + std::to_string(errno)).c_str());
+        return false;
+    }
+
+    // 8N1, no hardware flow control, no modem stuff
+    tty.c_cflag &= ~(PARENB | CSTOPB | CSIZE | CRTSCTS);
+    tty.c_cflag |= CS8 | CREAD | CLOCAL;
+
+    // non-canonical mode (raw data), no signal characters
+    tty.c_lflag &= ~(ICANON | ISIG);
+
+    // no software flow control either, or any other special handling
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY | IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
+    tty.c_oflag &= ~(OPOST | ONLCR);
+    tty.c_cc[VTIME] = 1;    // block infinitely
+    tty.c_cc[VMIN] = 1; // min. 1 byte read
+    cfsetispeed(&tty, B115200);
+    cfsetospeed(&tty, B115200);
+
+    if(tcsetattr(serial_fd, TCSANOW, &tty) != 0){
+        LogError((std::string("Failed to get serial port attributes: ") + std::to_string(errno)).c_str());
+        return false;
+    }
+    int flags;
+    if(ioctl(serial_fd, TIOCMGET, &flags) == -1){
+        LogError((std::string("Failed to get serial port attributes: ") + std::to_string(errno)).c_str());
+        return false;
+    }
+    flags |= TIOCM_DTR;
+    if(ioctl(serial_fd, TIOCMSET, &flags) == -1){
+        LogError((std::string("Failed to set serial port attributes: ") + std::to_string(errno)).c_str());
+        return false;
+    }
+
+    m_isConnected = true;
+
+    LogMessage("Successfully connected to dongle");
+
+    // send some stuff, maybe it'll stop the dongle from crashing all the time
+    uint8_t cmd1[] = {0x7, 0x0, 0x6b};
+    //WriteCommandRaw(cmd1,sizeof(cmd1));
+    uint8_t cmd2[] = {0x16, 0x1, 0x1, 0x1, 0x1, 0x16};
+    //WriteCommandRaw(cmd2,sizeof(cmd2));
+
+    return true;
+#endif
 };
 
 void SerialCommunicationManager::WaitAttemptConnection() {
@@ -230,7 +315,7 @@ void SerialCommunicationManager::WaitAttemptConnection() {
 
 void SerialCommunicationManager::BeginListener(
     const std::function<void(const ContactGloveDevice_t handedness, const GloveInputData_t&)> inputCallback,
-    const std::function<void(const ContactGloveDevice_t handedness, const GlovePacketFingers_t&)> fingersCallback,
+    const std::function<void(const ContactGloveDevice_t handedness, const GlovePacketFingers2_t&)> fingersCallback,
     const std::function<void(const DevicesStatus_t&)> statusCallback,
     const std::function<void(const DevicesFirmware_t&)> firmwareCallback) {
 
@@ -247,7 +332,7 @@ void SerialCommunicationManager::ListenerThread() {
     WaitAttemptConnection();
 
     PurgeBuffer();
-
+    size_t waitcounter = 0;
     while (m_threadActive) {
         std::string receivedString;
 
@@ -281,36 +366,77 @@ void SerialCommunicationManager::ListenerThread() {
         }
 
     finish:
+        if((waitcounter % 100) == 0){
+            // this is just an easy way to send data for testing for now, until it's better understood
+
+            // seems to be unreliable, enables the magnetra (on the left glove)
+            uint8_t cmd2[] = {0x16, 0x1, 0x1, 0x1, 0x1};  // sometimes makes the glove play the startup noise, changes packet 0x15
+            WriteCommandRaw(cmd2,sizeof(cmd2));
+            // and on the right glove (arg[0] seems to be the glove index then)
+            uint8_t cmd4[] = {0x16, 0x2, 0x1, 0x1, 0x1};
+            WriteCommandRaw(cmd4, sizeof(cmd4));
+
+            uint8_t cmd1[] = {0x7, 0x0};
+            //WriteCommandRaw(cmd1,sizeof(cmd1));
+            uint8_t cmd3[] = {0x16, 0x1, 0x4, 0x3, 0x0, 0x0, 0xff};
+            //WriteCommandRaw(cmd3,sizeof(cmd3));
+
+            uint8_t cmd5[] = {0x18, 0x2, 0x1};
+            WriteCommandRaw(cmd5,sizeof(cmd5));
+            uint8_t cmd6[] = {0x18, 0x1, 0x0b};
+            WriteCommandRaw(cmd6,sizeof(cmd6));
+            // triggers haptics on the right glove
+            // 10 [b1, b2, duration (uint16, ms), b3]
+            // b1 and b2 are fully unknown, b3 must be anything but 0
+            uint8_t cmd7[] = {0x10, 0x64, 0x00, 0x50, 0x00, 0xff};
+            //WriteCommandRaw(cmd7,sizeof(cmd7));
+            printf("sent\n");
+        }
+        // gets sent periodically. No idea what it means, but it keeps the dongle from crashing
+        uint8_t keepalive[] = {0x1, 0x0, 0x0, 0xf0, 0x0, 0x0, 0xf0};
+        WriteCommandRaw(keepalive,sizeof(keepalive));
         // write anything we need to
         WriteQueued();
+        waitcounter++;
     }
 }
 
 bool SerialCommunicationManager::ReceiveNextPacket(std::string& buff) {
+    #ifdef WIN32
     DWORD dwRead    = 0;
+    #else
+    ssize_t dwRead = 0;
+    #endif
 
     char thisChar   = 0x00;
     char lastChar   = 0x00;
 
     do {
         lastChar = thisChar;
-
+        #ifdef WIN32
         if (!ReadFile(m_hSerial, &thisChar, 1, &dwRead, NULL)) {
             LogError("Error reading from file");
             return false;
         }
+        #else
+        dwRead = read(serial_fd, &thisChar, 1);
+        if(dwRead == -1){
+            LogError("Error reading from serial port");
+            return false;
+        }
+        #endif
 
         if (dwRead == 0) {
             break;
         }
-
+        //printf("read byte %d\n", (int)thisChar);
         // Delimeter is 0, since data is encoded using COBS
         if (thisChar == 0) {
             // the last byte will be 0
             uint8_t* pData = (uint8_t*)malloc(buff.size());
             if (pData != 0) {
-                memset(pData, 0, buff.size());
-                memcpy(pData, buff.c_str(), buff.size());
+                std::memset(pData, 0, buff.size());
+                std::memcpy(pData, buff.c_str(), buff.size());
 
                 // Decode data
                 cobs::decode(pData, buff.size());
@@ -349,6 +475,7 @@ bool SerialCommunicationManager::ReceiveNextPacket(std::string& buff) {
 
             // Clear buffer
             buff = "";
+            return true;    // return to give the thread a chance to do other things (like sending data)
         }
         else {
             // Only add the current character if 0 we aren't on the delimeter
@@ -378,6 +505,26 @@ void SerialCommunicationManager::WriteCommand(const std::string& command) {
     m_queuedWrite = command + "\r\n";
 }
 
+// appends the CRC
+void SerialCommunicationManager::WriteCommandRaw(const uint8_t* data, size_t size) {
+    std::scoped_lock lock(m_writeMutex);
+
+    if (!m_isConnected) {
+        LogMessage("Cannot write to dongle as it is not connected.");
+
+        return;
+    }
+    // all this string stuff is ugly, I should maybe replace it with a vector
+    std::string buf(size + 1, 0);
+    std::memcpy(buf.data(), data, size);
+    crc checksum = F_CRC_CalculateCheckSum(data, size);
+    buf.data()[size] = checksum;
+    std::string encoded(size + 3, 0);
+    cobs::encode((uint8_t*)buf.data(), buf.size(), (uint8_t*)encoded.data());
+
+    m_queuedWrite += encoded;
+}
+
 bool SerialCommunicationManager::WriteQueued() {
     std::scoped_lock lock(m_writeMutex);
 
@@ -389,14 +536,28 @@ bool SerialCommunicationManager::WriteQueued() {
         return true;
     }
 
-    const char* buf = m_queuedWrite.c_str();
+    const char* buf = m_queuedWrite.data();
+    #ifdef WIN32
     DWORD bytesSend;
     if (!WriteFile(this->m_hSerial, (void*)buf, (DWORD)m_queuedWrite.size(), &bytesSend, 0)) {
         LogError("Error writing to port");
         return false;
     }
+    #else
+    ssize_t sent = write(serial_fd, buf, m_queuedWrite.size());
+    if(sent == -1){
+        LogError("Error writing to port");
+        return false;
+    }
+    if(sent != m_queuedWrite.size()){
+        // if this happens, just make a loop that retries the unsent data
+        LogError("Wrote too little to serial port");
+        return false;
+    }
+    #endif
 
-    printf("Wrote: %s\n", m_queuedWrite.c_str());
+    //printf("Wrote: %s\n", m_queuedWrite.c_str());
+    //PrintBuffer("SentData", (uint8_t*)m_queuedWrite.data(), m_queuedWrite.size());
 
     m_queuedWrite.clear();
 
@@ -404,13 +565,22 @@ bool SerialCommunicationManager::WriteQueued() {
 }
 
 bool SerialCommunicationManager::PurgeBuffer() const {
+    #ifdef WIN32
     return PurgeComm(m_hSerial, PURGE_RXCLEAR | PURGE_TXCLEAR);
+    #else
+    #warning "NOT IMPLEMENTED"
+    return true;
+    #endif
 }
 
 void SerialCommunicationManager::Disconnect() {
     printf("Attempting to disconnect serial\n");
     if (m_threadActive.exchange(false)) {
+        #ifdef WIN32
         CancelIoEx(m_hSerial, nullptr);
+        #else
+        #warning "NOT IMPLEMENTED"
+        #endif
         m_serialThread.join();
 
         printf("Serial joined\n");
@@ -430,11 +600,17 @@ bool SerialCommunicationManager::DisconnectFromDevice(bool writeDeactivate) {
     else {
         LogMessage("Not deactivating Input API as dongle was forcibly disconnected");
     }
-
+    #ifdef WIN32
     if (!CloseHandle(m_hSerial)) {
         LogError("Error disconnecting from device");
         return false;
     }
+    #else 
+    if(!close(serial_fd)){
+        LogError("Error disconnecting from device");
+        return false;
+    }
+    #endif
 
     m_isConnected = false;
 
@@ -510,6 +686,56 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
     }
 
     break;
+    case GLOVE_LEFT_PACKET_DATA_2:
+    {
+        // Assign type
+        outPacket->type = PacketType_t::GloveLeftData;
+
+        // Extract data
+        outPacket->packet.gloveData.joystickX = 0xff - (pData)[3];
+        outPacket->packet.gloveData.joystickY = (pData)[2];
+        outPacket->packet.gloveData.trigger = pData[4];
+
+        uint8_t button_mask = ((uint8_t*)pData)[1];
+        uint8_t button2_mask = ((uint8_t*)pData)[5];
+
+        // KNOWN VALUES:
+        // None             :: 0x1f ff   0001 1111 1111 1111
+        // "touchpad" Up    :: 0x1f 8a   0001 1111 1000 1010
+        // "touchpad" Down  :: 0x17 ff   0001 0111 1111 1111
+        // A (BTN_DOWN)     :: 0x1d ff   0001 1101 1111 1111
+        // B (BTN_UP)       :: 0x1e ff   0001 1110 1111 1111
+        // Joystick Click   :: 0x1f 01   0001 1111 0000 0001
+        // System button       0x1f b9   0001 1111 1011 1001
+        // trigger click       0x1b      0001 1011
+        // the second button value seems to not be a mask, but just a few fixed values instead
+
+        outPacket->packet.gloveData.hasMagnetra     =   (button_mask & CONTACT_GLOVE_2_INPUT_MASK_MAGNETRA_PRESENT)   == CONTACT_GLOVE_2_INPUT_MASK_MAGNETRA_PRESENT;
+        outPacket->packet.gloveData.systemUp        = !((button2_mask & CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP)          == CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP);
+        outPacket->packet.gloveData.systemDown      = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_DOWN)        == CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_DOWN);
+        outPacket->packet.gloveData.buttonUp        = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_BUTTON_UP)          == CONTACT_GLOVE_2_INPUT_MASK_BUTTON_UP);
+        outPacket->packet.gloveData.buttonDown      = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_BUTTON_DOWN)        == CONTACT_GLOVE_2_INPUT_MASK_BUTTON_DOWN);
+        outPacket->packet.gloveData.joystickClick   = !((button2_mask & CONTACT_GLOVE_2_INPUT_MASK_JOYSTICK_CLICK)     == CONTACT_GLOVE_2_INPUT_MASK_JOYSTICK_CLICK);
+        outPacket->packet.gloveData.triggerClick   = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_TRIGGER_CLICK)     == CONTACT_GLOVE_2_INPUT_MASK_TRIGGER_CLICK);
+        outPacket->packet.gloveData.systemButton = button2_mask == CONTACT_GLOVE_2_INPUT_SYSTEM_BUTTON;
+
+        // printf("data[R]:: magnetra:%d, sysUp:%d, sysDn:%d, btnUp:%d, btnDn:%d, joyClk:%d (0x%04hX,0x%04hX)\n",
+        //     outPacket->packet.gloveData.hasMagnetra,
+        //     outPacket->packet.gloveData.systemUp,
+        //     outPacket->packet.gloveData.systemDown,
+        //     outPacket->packet.gloveData.buttonUp,
+        //     outPacket->packet.gloveData.buttonDown,
+        //     outPacket->packet.gloveData.joystickClick,
+        //     outPacket->packet.gloveData.joystickX,
+        //     outPacket->packet.gloveData.joystickY);
+
+        // Left glove data packet
+         //PrintBuffer("glove_data_left", pData, length);
+
+        decoded = true;
+    }
+    break;
+
     case GLOVE_RIGHT_PACKET_DATA:
     {
         // Assign type
@@ -549,6 +775,55 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
 
         // Right glove data packet
         // PrintBuffer("glove_data_right", pData, length);
+
+        decoded = true;
+    }
+    break;
+    case GLOVE_RIGHT_PACKET_DATA_2:
+    {
+        // Assign type
+        outPacket->type = PacketType_t::GloveRightData;
+
+        // Extract data
+        outPacket->packet.gloveData.joystickX = 0xff - (pData)[3];
+        outPacket->packet.gloveData.joystickY = (pData)[2];
+        outPacket->packet.gloveData.trigger = pData[4];
+
+        uint8_t button_mask = ((uint8_t*)pData)[1];
+        uint8_t button2_mask = ((uint8_t*)pData)[5];
+
+        // KNOWN VALUES:
+        // None             :: 0x1f ff   0001 1111 1111 1111
+        // "touchpad" Up    :: 0x1f 8a   0001 1111 1000 1010
+        // "touchpad" Down  :: 0x17 ff   0001 0111 1111 1111
+        // A (BTN_DOWN)     :: 0x1d ff   0001 1101 1111 1111
+        // B (BTN_UP)       :: 0x1e ff   0001 1110 1111 1111
+        // Joystick Click   :: 0x1f 01   0001 1111 0000 0001
+        // System button       0x1f b9   0001 1111 1011 1001
+        // trigger click       0x1b      0001 1011
+        // the second button value seems to not be a mask, but just a few fixed values instead
+
+        outPacket->packet.gloveData.hasMagnetra     =   (button_mask & CONTACT_GLOVE_2_INPUT_MASK_MAGNETRA_PRESENT)   == CONTACT_GLOVE_2_INPUT_MASK_MAGNETRA_PRESENT;
+        outPacket->packet.gloveData.systemUp        = !((button2_mask & CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP)          == CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP);
+        outPacket->packet.gloveData.systemDown      = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_DOWN)        == CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_DOWN);
+        outPacket->packet.gloveData.buttonUp        = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_BUTTON_UP)          == CONTACT_GLOVE_2_INPUT_MASK_BUTTON_UP);
+        outPacket->packet.gloveData.buttonDown      = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_BUTTON_DOWN)        == CONTACT_GLOVE_2_INPUT_MASK_BUTTON_DOWN);
+        outPacket->packet.gloveData.joystickClick   = !((button2_mask & CONTACT_GLOVE_2_INPUT_MASK_JOYSTICK_CLICK)     == CONTACT_GLOVE_2_INPUT_MASK_JOYSTICK_CLICK);
+        outPacket->packet.gloveData.triggerClick   = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_TRIGGER_CLICK)     == CONTACT_GLOVE_2_INPUT_MASK_TRIGGER_CLICK);
+        outPacket->packet.gloveData.systemButton = button2_mask == CONTACT_GLOVE_2_INPUT_SYSTEM_BUTTON;
+
+        // printf("data[R]:: magnetra:%d, sysUp:%d, sysDn:%d, btnUp:%d, btnDn:%d, joyClk:%d (0x%04hX,0x%04hX)\n",
+        //     outPacket->packet.gloveData.hasMagnetra,
+        //     outPacket->packet.gloveData.systemUp,
+        //     outPacket->packet.gloveData.systemDown,
+        //     outPacket->packet.gloveData.buttonUp,
+        //     outPacket->packet.gloveData.buttonDown,
+        //     outPacket->packet.gloveData.joystickClick,
+        //     outPacket->packet.gloveData.joystickX,
+        //     outPacket->packet.gloveData.joystickY);
+
+        // Right glove data packet
+         //PrintBuffer("glove_data_right", pData, length);
 
         decoded = true;
     }
@@ -609,32 +884,54 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
     {
         // Assign type
         outPacket->type = PacketType_t::GloveLeftFingers;
-        // Extract data
-        outPacket->packet.gloveFingers.fingerThumbTip   = ((uint16_t*)(pData + 1))[9];
-        outPacket->packet.gloveFingers.fingerThumbRoot  = ((uint16_t*)(pData + 1))[8];
-        outPacket->packet.gloveFingers.fingerIndexTip   = ((uint16_t*)(pData + 1))[7];
-        outPacket->packet.gloveFingers.fingerIndexRoot  = ((uint16_t*)(pData + 1))[6];
-        outPacket->packet.gloveFingers.fingerMiddleTip  = ((uint16_t*)(pData + 1))[5];
-        outPacket->packet.gloveFingers.fingerMiddleRoot = ((uint16_t*)(pData + 1))[4];
-        outPacket->packet.gloveFingers.fingerRingTip    = ((uint16_t*)(pData + 1))[3];
-        outPacket->packet.gloveFingers.fingerRingRoot   = ((uint16_t*)(pData + 1))[2];
-        outPacket->packet.gloveFingers.fingerPinkyTip   = ((uint16_t*)(pData + 1))[0];
-        outPacket->packet.gloveFingers.fingerPinkyRoot  = ((uint16_t*)(pData + 1))[1];
-
-        // printf(
-        //     "fingers[L]:: (%d, %d) (%d, %d) (%d, %d) (%d, %d) (%d, %d)\n",
-        //     outPacket->packet.gloveFingers.fingerThumbTip,
-        //     outPacket->packet.gloveFingers.fingerThumbRoot,
-        //     outPacket->packet.gloveFingers.fingerIndexTip,
-        //     outPacket->packet.gloveFingers.fingerIndexRoot,
-        //     outPacket->packet.gloveFingers.fingerMiddleTip,
-        //     outPacket->packet.gloveFingers.fingerMiddleRoot,
-        //     outPacket->packet.gloveFingers.fingerRingTip,
-        //     outPacket->packet.gloveFingers.fingerRingRoot,
-        //     outPacket->packet.gloveFingers.fingerPinkyTip,
-        //     outPacket->packet.gloveFingers.fingerPinkyRoot);
 
         // PrintBuffer("glove_left_fingers", pData, length);
+        //printf("Left glove: ");
+        if(length == 37){
+            // contactgloves2 data
+            // indexroot: 10, 12
+            // indextip: 11
+            // middletip 8
+            // middleroot 7, 9
+            // ringroot: 4,6
+            // ringtip: 5
+            // pinkyroot: 1,3
+            // pinkytip: 2
+            // thumbroot: 16
+            // thumbtip: 14
+            // thumb is 13-16
+            // 17 is unknown
+            //for(size_t i = 0; i < 18; i++){
+            //    printf("\t[%d]: %d\n", i, ((uint16_t*)(pData + 1))[i]);
+            //}
+            GlovePacketFingers2_t* fingers = (GlovePacketFingers2_t*)(pData + 1);
+            outPacket->packet.gloveFingers = *fingers;
+        } else {
+            // Extract data
+            outPacket->packet.gloveFingers.fingerThumbTip   = ((uint16_t*)(pData + 1))[9];
+            outPacket->packet.gloveFingers.fingerThumbRoot  = ((uint16_t*)(pData + 1))[8];
+            outPacket->packet.gloveFingers.fingerIndexTip   = ((uint16_t*)(pData + 1))[7];
+            outPacket->packet.gloveFingers.fingerIndexRoot1  = ((uint16_t*)(pData + 1))[6];
+            outPacket->packet.gloveFingers.fingerMiddleTip  = ((uint16_t*)(pData + 1))[5];
+            outPacket->packet.gloveFingers.fingerMiddleRoot1 = ((uint16_t*)(pData + 1))[4];
+            outPacket->packet.gloveFingers.fingerRingTip    = ((uint16_t*)(pData + 1))[3];
+            outPacket->packet.gloveFingers.fingerRingRoot1   = ((uint16_t*)(pData + 1))[2];
+            outPacket->packet.gloveFingers.fingerPinkyTip   = ((uint16_t*)(pData + 1))[0];
+            outPacket->packet.gloveFingers.fingerPinkyRoot1  = ((uint16_t*)(pData + 1))[1];
+
+            // printf(
+            //     "fingers[L]:: (%d, %d) (%d, %d) (%d, %d) (%d, %d) (%d, %d)\n",
+            //     outPacket->packet.gloveFingers.fingerThumbTip,
+            //     outPacket->packet.gloveFingers.fingerThumbRoot,
+            //     outPacket->packet.gloveFingers.fingerIndexTip,
+            //     outPacket->packet.gloveFingers.fingerIndexRoot,
+            //     outPacket->packet.gloveFingers.fingerMiddleTip,
+            //     outPacket->packet.gloveFingers.fingerMiddleRoot,
+            //     outPacket->packet.gloveFingers.fingerRingTip,
+            //     outPacket->packet.gloveFingers.fingerRingRoot,
+            //     outPacket->packet.gloveFingers.fingerPinkyTip,
+            //     outPacket->packet.gloveFingers.fingerPinkyRoot);
+        }
 
         decoded = true;
 
@@ -676,18 +973,38 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
         // Assign type
         outPacket->type = PacketType_t::GloveRightFingers;
 
-        // Extract data
-        outPacket->packet.gloveFingers.fingerThumbTip   = ((uint16_t*)(pData + 1))[9];
-        outPacket->packet.gloveFingers.fingerThumbRoot  = ((uint16_t*)(pData + 1))[8];
-        outPacket->packet.gloveFingers.fingerIndexTip   = ((uint16_t*)(pData + 1))[7];
-        outPacket->packet.gloveFingers.fingerIndexRoot  = ((uint16_t*)(pData + 1))[6];
-        outPacket->packet.gloveFingers.fingerMiddleTip  = ((uint16_t*)(pData + 1))[5];
-        outPacket->packet.gloveFingers.fingerMiddleRoot = ((uint16_t*)(pData + 1))[4];
-        outPacket->packet.gloveFingers.fingerRingTip    = ((uint16_t*)(pData + 1))[3];
-        outPacket->packet.gloveFingers.fingerRingRoot   = ((uint16_t*)(pData + 1))[2];
-        outPacket->packet.gloveFingers.fingerPinkyTip   = ((uint16_t*)(pData + 1))[0];
-        outPacket->packet.gloveFingers.fingerPinkyRoot  = ((uint16_t*)(pData + 1))[1];
-
+        if(length == 37){
+            // contactgloves2 data
+            // indexroot: 10, 12
+            // indextip: 11
+            // middletip 8
+            // middleroot 7, 9
+            // ringroot: 4,6
+            // ringtip: 5
+            // pinkyroot: 1,3
+            // pinkytip: 2
+            // thumbroot: 16
+            // thumbtip: 14
+            // thumb is 13-16
+            // 17 is unknown
+            //for(size_t i = 0; i < 18; i++){
+            //    printf("\t[%d]: %d\n", i, ((uint16_t*)(pData + 1))[i]);
+            //}
+            GlovePacketFingers2_t* fingers = (GlovePacketFingers2_t*)(pData + 1);
+            outPacket->packet.gloveFingers = *fingers;
+        } else {
+            // Extract data
+            outPacket->packet.gloveFingers.fingerThumbTip   = ((uint16_t*)(pData + 1))[9];
+            outPacket->packet.gloveFingers.fingerThumbRoot  = ((uint16_t*)(pData + 1))[8];
+            outPacket->packet.gloveFingers.fingerIndexTip   = ((uint16_t*)(pData + 1))[7];
+            outPacket->packet.gloveFingers.fingerIndexRoot1  = ((uint16_t*)(pData + 1))[6];
+            outPacket->packet.gloveFingers.fingerMiddleTip  = ((uint16_t*)(pData + 1))[5];
+            outPacket->packet.gloveFingers.fingerMiddleRoot1 = ((uint16_t*)(pData + 1))[4];
+            outPacket->packet.gloveFingers.fingerRingTip    = ((uint16_t*)(pData + 1))[3];
+            outPacket->packet.gloveFingers.fingerRingRoot1   = ((uint16_t*)(pData + 1))[2];
+            outPacket->packet.gloveFingers.fingerPinkyTip   = ((uint16_t*)(pData + 1))[0];
+            outPacket->packet.gloveFingers.fingerPinkyRoot1  = ((uint16_t*)(pData + 1))[1];
+        }
         // printf(
         //     "fingers[R]:: (%d, %d) (%d, %d) (%d, %d) (%d, %d) (%d, %d)\n",
         //     outPacket->packet.gloveFingers.fingerThumbTip,
@@ -741,7 +1058,7 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
 
     default:
         // @FIXME: Use proper logging library
-        printf("[WARN] Got unknown packet with command code 0x%02hX!!\n", pData[0]);
+        //printf("[WARN] Got unknown packet with command code 0x%02hX!!\n", pData[0]);
         PrintBuffer("unknown_packet", pData, length);
         break;
     }

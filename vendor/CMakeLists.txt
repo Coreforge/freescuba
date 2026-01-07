@@ -1,2 +1,4 @@
 # Minhook library
-add_subdirectory ("minhook")
+if(WIN32)
+    add_subdirectory ("minhook")
+endif()

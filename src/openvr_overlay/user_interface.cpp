@@ -1,7 +1,9 @@
+#include "app_state.hpp"
 #define _USE_MATH_DEFINES
 #include <openvr.h>
 
 #include "user_interface.hpp"
+#include <cmath>
 
 #include "maths.hpp"
 
@@ -54,9 +56,11 @@ void SetupImgui() {
 
     const float FONT_SIZE = 16.0f;
 
+    #ifdef WIN32
     fontRegular = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf",  FONT_SIZE); // Segoe UI
     fontBold    = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeuib.ttf", FONT_SIZE); // Segoe UI Bold
     fontLight   = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeuil.ttf", FONT_SIZE); // Segoe UI Light
+    #endif
 }
 void CleanupImgui() {
 
@@ -134,8 +138,8 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
 
                     float columnWidth = ImGui::CalcItemWidth() / 5.0f;
                     ImGui::PushID((id + "_buttons_container").c_str());
-                    ImGui::Columns(5);
-                    for (int i = 0; i < 5; i++) {
+                    ImGui::Columns(7);
+                    for (int i = 0; i < 7; i++) {
                         ImGui::SetColumnWidth(i, columnWidth);
                     }
                     ImGui::PushID((id + "_button_a").c_str());
@@ -157,14 +161,33 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                     ImGui::PushID((id + "_joystick_click").c_str());
                     ImGui::RadioButton("Joystick Click##gloveL", glove.joystickClick);
                     ImGui::PopID();
+                    ImGui::NextColumn();
+                    ImGui::PushID((id+"_trigger_click").c_str());
+                    ImGui::RadioButton("Trigger Click##gloveL", glove.triggerClick);
+                    ImGui::PopID();
+                    ImGui::NextColumn();
+                    ImGui::PushID((id+"_system_btn").c_str());
+                    ImGui::RadioButton("System Button##gloveL", glove.systemButton);
+                    ImGui::PopID();
                     ImGui::Columns(1);
                     ImGui::PopID();
+
+                    ImGui::PushFont(fontBold);
+                    ImGui::Text("Trigger");
+                    ImGui::PopFont();
+                    ImGui::SameLine();
+                    ImGui::ProgressBar(glove.trigger, ImVec2(-FLT_MIN, 0), nullptr);
+                    
 
                     ImGui::Spacing();
                     ImGui::Spacing();
 
                     if (ImGui::Button("Calibrate Thumbstick")) {
                         state.uiState.page = ScreenState_t::ScreenStateCalibrateJoystick;
+                        state.uiState.calibrationState = CalibrationState_t::State_Entering;
+                    }
+                    if (ImGui::Button("Calibrate Trigger")) {
+                        state.uiState.page = ScreenState_t::ScreenStateCalibrateTrigger;
                         state.uiState.calibrationState = CalibrationState_t::State_Entering;
                     }
 
@@ -372,6 +395,91 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
             }
             ImGui::Spacing();
         }
+    }
+    ImGui::EndGroupPanel();
+}
+
+void DrawCalibrateTrigger(AppState& state){
+    ImGui::BeginGroupPanel("Trigger Calibration");
+    // most of this is copied from joystick calibration, which is quite similar
+    {
+    // Isolate the glove we wish to work on
+        protocol::ContactGloveState_t* desiredGlove = nullptr;
+        if (state.uiState.processingHandedness == Handedness_t::Left) {
+            ImGui::Text("Calibrating Left Trigger...");
+            desiredGlove = &state.gloveLeft;
+        }
+        else {
+            ImGui::Text("Calibrating Right Trigger...");
+            desiredGlove = &state.gloveRight;
+        }
+
+        if (state.uiState.calibrationState == CalibrationState_t::State_Entering) {
+            // Copy the old calibration data
+            memcpy(&state.uiState.oldCalibration, &desiredGlove->calibration, sizeof(protocol::ContactGloveState_t::CalibrationData_t));
+            // Create a new calibration state, and 0 the joystick calibration
+            memcpy(&state.uiState.currentCalibration, &desiredGlove->calibration, sizeof(protocol::ContactGloveState_t::CalibrationData_t));
+            memset(&state.uiState.currentCalibration.trigger, 0, sizeof(protocol::ContactGloveState_t::CalibrationData_t::TriggerCalibration_t));
+
+            state.uiState.currentCalibration.trigger.min = 0xff;
+            state.uiState.currentCalibration.trigger.max = 0x00;
+
+            state.uiState.calibrationState = CalibrationState_t::Trigger_DiscoverNeutral;
+        }
+
+        // Cache if the buttons are pressed
+        const bool anyButtonPressedNoJoystick =
+            state.uiState.gloveButtons.releasedLeft.buttonUp || state.uiState.gloveButtons.releasedLeft.buttonDown || state.uiState.gloveButtons.releasedLeft.systemUp || state.uiState.gloveButtons.releasedLeft.systemDown ||
+            state.uiState.gloveButtons.releasedRight.buttonUp || state.uiState.gloveButtons.releasedRight.buttonDown || state.uiState.gloveButtons.releasedRight.systemUp || state.uiState.gloveButtons.releasedRight.systemDown;
+
+        switch (state.uiState.calibrationState) {
+            case CalibrationState_t::Trigger_DiscoverNeutral:
+            {
+                ImGui::Text("Let the trigger rest");
+                state.uiState.currentCalibration.trigger.min = MIN(state.uiState.currentCalibration.trigger.min, desiredGlove->triggerRaw);
+
+                // Proceed on any input
+                ImGui::Text("Press any button to continue...");
+
+                if (ImGui::Button("Continue") || anyButtonPressedNoJoystick) {
+                    // Move to the next state
+                    state.uiState.calibrationState = CalibrationState_t::Trigger_DiscoverClick;
+                }
+                break;
+            }
+            case CalibrationState_t::Trigger_DiscoverClick:
+            {
+                ImGui::Text("Fully pull the trigger until it clicks");
+                state.uiState.currentCalibration.trigger.max = MAX(state.uiState.currentCalibration.trigger.max, desiredGlove->triggerRaw);
+
+                // Proceed on any input
+                ImGui::Text("Press any button to continue... (or click the trigger)");
+
+                if (ImGui::Button("Continue") || anyButtonPressedNoJoystick || desiredGlove->triggerClick) {
+                    // Move to the next state
+                    state.uiState.calibrationState = CalibrationState_t::State_Entering;
+                    state.uiState.page = ScreenState_t::ScreenStateViewData;
+
+                    // Copy the new calibration back
+                    memcpy(&desiredGlove->calibration , &state.uiState.currentCalibration, sizeof(protocol::ContactGloveState_t::CalibrationData_t));
+                }
+                break;
+            }
+            default:
+            {
+                ImGui::Text((std::string("Encountered broken state! (") + std::to_string((int)state.uiState.calibrationState) + ")").c_str());
+                break;
+            }
+        }    
+        if (ImGui::Button("Cancel")) {
+            // Move to the data page
+            state.uiState.calibrationState = CalibrationState_t::State_Entering;
+            state.uiState.page = ScreenState_t::ScreenStateViewData;
+
+            // Set the old calibration
+            // Should not be necessary
+            // memcpy(&desiredGlove->calibration, &state.uiState.oldCalibration, sizeof(protocol::ContactGloveState::CalibrationData));
+        }        
     }
     ImGui::EndGroupPanel();
 }
@@ -1040,6 +1148,10 @@ void DrawUi(const bool isOverlay, AppState& state) {
         }
         case ScreenState_t::ScreenStateCalibrateOffset: {
             DrawCalibrateOffsets(state);
+            break;
+        }
+        case ScreenState_t::ScreenStateCalibrateTrigger: {
+            DrawCalibrateTrigger(state);
             break;
         }
     }

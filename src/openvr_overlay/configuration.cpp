@@ -1,15 +1,26 @@
 #include "configuration.hpp"
 
 #include <picojson.h>
+#include <sys/stat.h>
+#ifdef WIN32
 #include <shlobj_core.h>
+#else
+#include <cstdlib>
+#endif
 #include <locale>
 #include <codecvt>
 #include <fstream>
+#include <filesystem>
 
+#ifdef WIN32
 static std::wstring s_configPath;
+#else
+static std::filesystem::path s_configPath;
+#endif
 static bool s_directoriesExist = false;
 
 static bool EnsureDirectoriesExist() {
+	#ifdef WIN32
 	PWSTR RootPath = NULL;
 	if (S_OK != SHGetKnownFolderPath(FOLDERID_LocalAppDataLow, 0, NULL, &RootPath)) {
 		CoTaskMemFree(RootPath);
@@ -24,6 +35,20 @@ static bool EnsureDirectoriesExist() {
 		return false;
 	}
 	s_configPath += L"\\config.json";
+	#else 
+	std::filesystem::path path;
+	// there is the chance for a crash here if HOME is not set
+	path = std::getenv("HOME");
+	path /= ".config";
+	path /= "freescuba";
+	if(mkdir(path.c_str(), 0770) != 0){
+		if(errno != EEXIST){
+			return false;
+		}
+	}
+	path /= "config.json";
+	s_configPath = path;
+	#endif
 
 	return true;
 }
@@ -46,6 +71,11 @@ inline void TryReadFloat(float& propToWriteTo, picojson::object objectToReadFrom
 inline void TryReadUint16(uint16_t& propToWriteTo, picojson::object objectToReadFrom, const char* valueName) {
 	try {
 		propToWriteTo = (uint16_t) objectToReadFrom[valueName].get<double>();
+	} catch (std::runtime_error) {}
+}
+inline void TryReadUint8(uint8_t& propToWriteTo, picojson::object objectToReadFrom, const char* valueName) {
+	try {
+		propToWriteTo = (uint8_t) objectToReadFrom[valueName].get<double>();
 	} catch (std::runtime_error) {}
 }
 
@@ -101,6 +131,16 @@ void ReadJoystickCalibration(protocol::ContactGloveState_t::CalibrationData_t::J
 		// state.YMin			= (uint16_t) joystickRoot["ymin"].get<double>();
 		// state.XNeutral		= (uint16_t) joystickRoot["xneutral"].get<double>();
 		// state.YNeutral		= (uint16_t) joystickRoot["yneutral"].get<double>();
+	} catch (std::runtime_error) {}
+}
+
+void ReadTriggerCalibration(protocol::ContactGloveState_t::CalibrationData_t::TriggerCalibration_t& state, picojson::object& jsonObj) {
+
+	try {
+		picojson::object triggerRoot = jsonObj["trigger"].get<picojson::object>();
+
+		TryReadUint8(state.min, triggerRoot, "min");
+		TryReadUint8(state.max, triggerRoot, "max");
 	} catch (std::runtime_error) {}
 }
 
@@ -171,7 +211,7 @@ void LoadConfiguration(AppState& state) {
 		s_directoriesExist = EnsureDirectoriesExist();
 	}
 	if (!s_directoriesExist) {
-		throw std::exception("Failed to creare config directory. Aborting...");
+		throw std::runtime_error("Failed to creare config directory. Aborting...");
 	}
 
 	// Loads the config file from disk
@@ -199,6 +239,7 @@ void LoadConfiguration(AppState& state) {
 		
 				ReadPoseOffset(state.gloveLeft.calibration.poseOffset, leftGloveObj);
 				ReadJoystickCalibration(state.gloveLeft.calibration.joystick, leftGloveObj);
+				ReadTriggerCalibration(state.gloveLeft.calibration.trigger, leftGloveObj);
 				ReadFingersCalibration(state.gloveLeft.calibration.fingers, leftGloveObj);
 				ReadGestures(state.gloveLeft.calibration.gestures, leftGloveObj);
 			} catch (std::runtime_error) {}
@@ -209,6 +250,7 @@ void LoadConfiguration(AppState& state) {
 		
 				ReadPoseOffset(state.gloveRight.calibration.poseOffset, rightGloveObj);
 				ReadJoystickCalibration(state.gloveRight.calibration.joystick, rightGloveObj);
+				ReadTriggerCalibration(state.gloveRight.calibration.trigger, rightGloveObj);
 				ReadFingersCalibration(state.gloveRight.calibration.fingers, rightGloveObj);
 				ReadGestures(state.gloveRight.calibration.gestures, rightGloveObj);
 			} catch (std::runtime_error) {}
@@ -254,6 +296,16 @@ void WriteJoystickCalibration(protocol::ContactGloveState_t::CalibrationData_t::
 	buf = state.forwardAngle; joystickRoot["forward"].set<double>( buf );
 
 	jsonObj["joystick"].set<picojson::object>(joystickRoot);
+}
+
+void WriteTriggerCalibration(protocol::ContactGloveState_t::CalibrationData_t::TriggerCalibration_t& state, picojson::object& jsonObj){
+	picojson::object triggerRoot;
+	double buf = state.min;
+	triggerRoot["min"].set<double>(buf);
+	buf=state.max;
+	triggerRoot["max"].set<double>(buf);
+
+	jsonObj["trigger"].set<picojson::object>(triggerRoot);
 }
 
 void WriteFingerJointCalibration(protocol::ContactGloveState_t::FingerJointCalibrationData_t& state, picojson::object& jsonObj) {
@@ -317,11 +369,12 @@ void SaveConfiguration(AppState& state) {
 		s_directoriesExist = EnsureDirectoriesExist();
 	}
 	if (!s_directoriesExist) {
-		throw std::exception("Failed to creare config directory. Aborting...");
+		throw std::runtime_error("Failed to creare config directory. Aborting...");
 	}
 
 	// Saves the config file to disk
 	std::ofstream fileStream(s_configPath);
+	printf("Opened config file\n");
 	if (fileStream.is_open()) {
 
 		picojson::object config;
@@ -331,6 +384,7 @@ void SaveConfiguration(AppState& state) {
 		// Write props
 		WritePoseCalibration(state.gloveLeft.calibration.poseOffset, gloveLeftConfig);
 		WriteJoystickCalibration(state.gloveLeft.calibration.joystick, gloveLeftConfig);
+		WriteTriggerCalibration(state.gloveLeft.calibration.trigger, gloveLeftConfig);
 		WriteFingersCalibration(state.gloveLeft.calibration.fingers, gloveLeftConfig);
 		WriteThresholds(state.gloveLeft.calibration.gestures, gloveLeftConfig);
 
@@ -339,6 +393,7 @@ void SaveConfiguration(AppState& state) {
 		// Write props
 		WritePoseCalibration(state.gloveRight.calibration.poseOffset, gloveRightConfig);
 		WriteJoystickCalibration(state.gloveRight.calibration.joystick, gloveRightConfig);
+		WriteTriggerCalibration(state.gloveRight.calibration.trigger, gloveRightConfig);
 		WriteFingersCalibration(state.gloveRight.calibration.fingers, gloveRightConfig);
 		WriteThresholds(state.gloveRight.calibration.gestures, gloveRightConfig);
 

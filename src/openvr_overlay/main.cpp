@@ -4,17 +4,20 @@
 #include "app_state.hpp"
 #include "configuration.hpp"
 #include "maths.hpp"
+#include <algorithm>
 
 void ForwardDataToDriver(AppState& state, IPCClient& ipcClient);
-void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::steady_clock::time_point gloveConnected);
+void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::high_resolution_clock::time_point gloveConnected);
 void UpdateGloveInputState(AppState& state);
 
 // Tell the GPU drivers to give the overlay priority over other apps, it's a driver after all
+#ifdef WIN32
 extern "C" __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
 extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x00000001;
+#endif
 
 // 2 second timeout for the gloves
-constexpr auto GLOVE_TIMEOUT = std::chrono::steady_clock::time_point::duration(std::chrono::milliseconds(2000));
+constexpr auto GLOVE_TIMEOUT = std::chrono::high_resolution_clock::time_point::duration(std::chrono::milliseconds(2000));
 
 // Props for the overlay
 #define OPENVR_APPLICATION_KEY "hyblocker.DriverFreeScuba"
@@ -22,9 +25,9 @@ static vr::VROverlayHandle_t s_overlayMainHandle;
 static vr::VROverlayHandle_t s_overlayThumbnailHandle;
 
 static std::string GetExecutableDirectory() {
+    #ifdef WIN32
     static std::string s_cwd(MAX_PATH, '\0');
     static bool s_cwdComputed = false;
-
     if (s_cwdComputed == false)
     {
         //Get path to exe (includes the exe file name)
@@ -43,6 +46,10 @@ static std::string GetExecutableDirectory() {
     }
 
     return s_cwd;
+    #else
+    #warning not implemented
+    return "./";
+    #endif
 }
 
 void ActivateMultipleDrivers()
@@ -80,6 +87,7 @@ void ActivateMultipleDrivers()
 // @TODO: Return an enum instead of throwing an exception
 void InitVR()
 {
+    #ifdef WIN32
     vr::EVRInitError initError = vr::VRInitError_None;
     vr::VR_Init(&initError, vr::VRApplication_Other);
     if (initError != vr::VRInitError_None)
@@ -102,6 +110,9 @@ void InitVR()
     }
 
     ActivateMultipleDrivers();
+    #else
+    #warning "SteamVR is disabled for now :3"
+    #endif
 }
 
 // @FIXME: Return a status enum
@@ -151,8 +162,8 @@ int main() {
         LoadConfiguration(state);
 
         // Glove timing
-        static std::chrono::steady_clock::time_point gloveLeftConnected  = std::chrono::steady_clock::time_point::min();
-        static std::chrono::steady_clock::time_point gloveRightConnected = std::chrono::steady_clock::time_point::min();
+        static std::chrono::high_resolution_clock::time_point gloveLeftConnected  = std::chrono::high_resolution_clock::time_point::min();
+        static std::chrono::high_resolution_clock::time_point gloveRightConnected = std::chrono::high_resolution_clock::time_point::min();
 
         // Init SteamVR
         InitVR();
@@ -176,6 +187,9 @@ int main() {
                         state.gloveLeft.joystickClick       = inputData.joystickClick;
                         state.gloveLeft.joystickXRaw        = inputData.joystickX;
                         state.gloveLeft.joystickYRaw        = inputData.joystickY;
+                        state.gloveLeft.systemButton = inputData.systemButton;
+                        state.gloveLeft.triggerRaw = inputData.trigger;
+                        state.gloveLeft.triggerClick = inputData.triggerClick;
                         break;
                     case ContactGloveDevice_t::RightGlove:
                         state.gloveRight.hasMagnetra        = inputData.hasMagnetra;
@@ -186,24 +200,28 @@ int main() {
                         state.gloveRight.joystickClick      = inputData.joystickClick;
                         state.gloveRight.joystickXRaw       = inputData.joystickX;
                         state.gloveRight.joystickYRaw       = inputData.joystickY;
+                        state.gloveRight.systemButton = inputData.systemButton;
+                        state.gloveRight.triggerRaw = inputData.trigger;
+                        state.gloveRight.triggerClick = inputData.triggerClick;
                         break;
                 }
             },
 
-            [&](const ContactGloveDevice_t handedness, const GlovePacketFingers_t& fingerData) {
+            [&](const ContactGloveDevice_t handedness, const GlovePacketFingers2_t& fingerData) {
                 switch (handedness) {
+                    #warning old contactgloves1 data format
                     case ContactGloveDevice_t::LeftGlove:
                         gloveLeftConnected = std::chrono::high_resolution_clock::now();
                         state.gloveLeft.isConnected         = true;
                         state.gloveLeft.thumbRootRaw        = fingerData.fingerThumbRoot;
                         state.gloveLeft.thumbTipRaw         = fingerData.fingerThumbTip;
-                        state.gloveLeft.indexRootRaw        = fingerData.fingerIndexRoot;
+                        state.gloveLeft.indexRootRaw        = fingerData.fingerIndexRoot1;
                         state.gloveLeft.indexTipRaw         = fingerData.fingerIndexTip;
-                        state.gloveLeft.middleRootRaw       = fingerData.fingerMiddleRoot;
+                        state.gloveLeft.middleRootRaw       = fingerData.fingerMiddleRoot1;
                         state.gloveLeft.middleTipRaw        = fingerData.fingerMiddleTip;
-                        state.gloveLeft.ringRootRaw         = fingerData.fingerRingRoot;
+                        state.gloveLeft.ringRootRaw         = fingerData.fingerRingRoot1;
                         state.gloveLeft.ringTipRaw          = fingerData.fingerRingTip;
-                        state.gloveLeft.pinkyRootRaw        = fingerData.fingerPinkyRoot;
+                        state.gloveLeft.pinkyRootRaw        = fingerData.fingerPinkyRoot1;
                         state.gloveLeft.pinkyTipRaw         = fingerData.fingerPinkyTip;
                         break;
                     case ContactGloveDevice_t::RightGlove:
@@ -211,13 +229,13 @@ int main() {
                         state.gloveRight.isConnected        = true;
                         state.gloveRight.thumbRootRaw       = fingerData.fingerThumbRoot;
                         state.gloveRight.thumbTipRaw        = fingerData.fingerThumbTip;
-                        state.gloveRight.indexRootRaw       = fingerData.fingerIndexRoot;
+                        state.gloveRight.indexRootRaw       = fingerData.fingerIndexRoot1;
                         state.gloveRight.indexTipRaw        = fingerData.fingerIndexTip;
-                        state.gloveRight.middleRootRaw      = fingerData.fingerMiddleRoot;
+                        state.gloveRight.middleRootRaw      = fingerData.fingerMiddleRoot1;
                         state.gloveRight.middleTipRaw       = fingerData.fingerMiddleTip;
-                        state.gloveRight.ringRootRaw        = fingerData.fingerRingRoot;
+                        state.gloveRight.ringRootRaw        = fingerData.fingerRingRoot1;
                         state.gloveRight.ringTipRaw         = fingerData.fingerRingTip;
-                        state.gloveRight.pinkyRootRaw       = fingerData.fingerPinkyRoot;
+                        state.gloveRight.pinkyRootRaw       = fingerData.fingerPinkyRoot1;
                         state.gloveRight.pinkyTipRaw        = fingerData.fingerPinkyTip;
                         break;
                 }
@@ -273,7 +291,9 @@ int main() {
         std::cerr << "Runtime error: " << e.what() << std::endl;
         wchar_t message[1024];
         swprintf(message, 1024, L"%hs", e.what());
+        #ifdef WIN32
         MessageBoxW(nullptr, message, L"Runtime Error", 0);
+        #endif
     }
 }
 
@@ -281,11 +301,11 @@ int main() {
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define CLAMP(t,a,b) (MAX(MIN(t, b), a))
 
-void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::steady_clock::time_point gloveConnected) {
+void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::high_resolution_clock::time_point gloveConnected) {
 
     // Compute whether we should consider the glove as connected or not
     auto delta = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - gloveConnected);
-    glove.isConnected = delta < GLOVE_TIMEOUT && gloveConnected != std::chrono::steady_clock::time_point::min();
+    glove.isConnected = delta < GLOVE_TIMEOUT && gloveConnected != std::chrono::high_resolution_clock::time_point::min();
 
     // Only process the rest of the data IF and only IF the glove is connected
     if (glove.isConnected) {
@@ -317,11 +337,16 @@ void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuf
                 glove.joystickX = 0.0f;
                 glove.joystickY = 0.0f;
             }
+
+            // process the trigger
+            float trigger = (glove.triggerRaw - glove.calibration.trigger.min) / (float)MAX(glove.calibration.trigger.max - glove.calibration.trigger.min, 0.f);
+            glove.trigger = std::clamp(trigger, 0.f, 1.f);
         }
         else {
             // Default values, i.e. no joystick / buttons
             glove.joystickX     = 0.0f;
             glove.joystickY     = 0.0f;
+            glove.trigger = 0.f;
             glove.buttonDown    = false;
             glove.buttonUp      = false;
             glove.systemDown    = false;
@@ -424,7 +449,8 @@ void UpdateGloveInputState(AppState& state) {
 static char deviceRole[vr::k_unMaxPropertyStringSize];
 
 void ForwardDataToDriver(AppState& state, IPCClient& ipcClient) {
-
+    #warning STUBBED
+    return;
     protocol::Request_t req = {};
 
     uint32_t trackerIdLeft  = CONTACT_GLOVE_INVALID_DEVICE_ID;

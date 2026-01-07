@@ -1,10 +1,13 @@
 #pragma once
 
+#include <cstdio>
 #include <openvr.h>
 #include "../ipc_protocol.hpp"
 
+#ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#endif
 
 class IPCClient {
 public:
@@ -17,5 +20,9 @@ public:
 	protocol::Response_t Receive() const;
 
 private:
+	#ifdef WIN32
 	HANDLE pipe = INVALID_HANDLE_VALUE;
+	#else
+	FILE* pipe = nullptr; 
+	#endif
 };

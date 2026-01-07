@@ -11,6 +11,7 @@ constexpr uint8_t BATTERY_WINDOW_SIZE = 128;
 enum class ScreenState_t {
     ScreenStateViewData,
     ScreenStateCalibrateJoystick,
+    ScreenStateCalibrateTrigger,
     ScreenStateCalibrateFingers,
     ScreenStateCalibrateFingersSingle,
     ScreenStateCalibrateOffset,
@@ -38,6 +39,10 @@ enum class CalibrationState_t {
     PoseOffset_FindInitialPose = 1,
     PoseOffset_Moving,
     PoseOffset_Set,
+
+    // Stages for trigger calibration
+    Trigger_DiscoverNeutral = 1,
+    Trigger_DiscoverClick,
 };
 
 enum class CalibrationFinger_t {

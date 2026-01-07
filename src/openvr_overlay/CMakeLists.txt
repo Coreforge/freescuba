@@ -53,8 +53,17 @@ set(IMGUI_FILES ${CMAKE_SOURCE_DIR}/vendor/imgui/imgui.cpp
               ${CMAKE_SOURCE_DIR}/vendor/imgui/imgui_draw.cpp
               ${CMAKE_SOURCE_DIR}/vendor/imgui/imgui_tables.cpp
               ${CMAKE_SOURCE_DIR}/vendor/imgui/imgui_widgets.cpp
-              ${CMAKE_SOURCE_DIR}/vendor/imgui/backends/imgui_impl_dx11.cpp
-              ${CMAKE_SOURCE_DIR}/vendor/imgui/backends/imgui_impl_win32.cpp)
+              )
+
+if(WIN32)
+  set(IMGUI_FILES ${IMGUI_FILES} 
+                  ${CMAKE_SOURCE_DIR}/vendor/imgui/backends/imgui_impl_dx11.cpp
+                  ${CMAKE_SOURCE_DIR}/vendor/imgui/backends/imgui_impl_win32.cpp)
+elseif(LINUX)
+  set(IMGUI_FILES ${IMGUI_FILES} 
+                  ${CMAKE_SOURCE_DIR}/vendor/imgui/backends/imgui_impl_opengl3.cpp
+                  ${CMAKE_SOURCE_DIR}/vendor/imgui/backends/imgui_impl_glfw.cpp)
+endif()
 
 add_definitions(-D_UNICODE)
 add_executable(FreeScubaOverlay ${SOURCES_API} ${SOURCES_HEADERS} ${IMGUI_FILES} ${WIN32_RESOURCES})
@@ -69,12 +78,20 @@ target_include_directories(FreeScubaOverlay
 	PUBLIC ${CMAKE_SOURCE_DIR}/vendor/imgui/backends
 )
 
+if(WIN32)
 target_link_libraries(FreeScubaOverlay
 	PRIVATE dxgi.lib
 	PRIVATE d3d11.lib
 	PRIVATE d3dcompiler.lib
   PRIVATE setupapi.lib
 	PRIVATE ${CMAKE_SOURCE_DIR}/vendor/openvr/lib/win64/openvr_api.lib)
+elseif(LINUX)
+  find_package(glfw3 REQUIRED)
+  target_link_libraries(FreeScubaOverlay 
+    PRIVATE glfw
+    PRIVATE GL
+    PRIVATE ${CMAKE_SOURCE_DIR}/vendor/openvr/lib/linux64/libopenvr_api.so)
+endif()
 
 target_compile_definitions(FreeScubaOverlay
 	PRIVATE NOMINMAX
@@ -97,9 +114,11 @@ add_custom_command(
 )
 
 # Copy openvrapi.dll
+if(WIN32)
 add_custom_command(
   TARGET FreeScubaOverlay POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy
   ${CMAKE_SOURCE_DIR}/vendor/openvr/bin/win64/openvr_api.dll
   ${CMAKE_BINARY_DIR}/artifacts/$<CONFIG>/openvr_api.dll
 )
+endif()

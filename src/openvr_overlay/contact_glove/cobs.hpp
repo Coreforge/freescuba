@@ -2,6 +2,7 @@
 #define COBS_C_H
 
 #include <cinttypes>
+#include <cstddef>
 
 namespace cobs {
 

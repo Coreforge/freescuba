@@ -3,17 +3,21 @@
 #include "resource.h"
 
 #include <algorithm>
+#ifdef WIN32
 #include <dwmapi.h>
 
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+#else
+#include <GLFW/glfw3.h>
+#endif
 
 // Framerate handling
 #define MINIMISED_MAX_FPS 60
 
 namespace FreeScuba {
     namespace Overlay {
-
+        #ifdef WIN32
         // Data
         static ID3D11Device*            g_pd3dDevice = nullptr;
         static ID3D11DeviceContext*     g_pd3dDeviceContext = nullptr;
@@ -450,5 +454,120 @@ namespace FreeScuba {
 
             return true;
         }
+        #else
+        // with the globbing in the cmake files, separating this into one file per platform is more annoying for now than this
+
+        double GetSystemTimeSeconds() {
+            return std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::high_resolution_clock::now().time_since_epoch()).count() / 1000000.;
+        }
+
+        void glfwErrorCallback(int error, const char* description){
+            fprintf(stderr, "GLFW error: %s\n", description);
+        }
+
+        GLFWwindow* window;
+        double lastFrameStartTime = 0;
+
+        const bool StartWindow() {
+            glfwSetErrorCallback(glfwErrorCallback);
+            if(!glfwInit()){
+                return false;
+            }
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+            window = glfwCreateWindow(1280,800, "Free Scuba Settings", nullptr, nullptr);
+            glfwMakeContextCurrent(window);
+            glfwSwapInterval(1);
+
+            // Setup Dear ImGui context
+            IMGUI_CHECKVERSION();
+            ImGui::CreateContext();
+            ImGuiIO& io = ImGui::GetIO(); (void)io;
+            io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+            io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+            // Setup Dear ImGui style
+            ImGui::StyleColorsDark();
+            //ImGui::StyleColorsLight();
+
+            // Setup Platform/Renderer backends
+            ImGui_ImplGlfw_InitForOpenGL(window, true);
+            ImGui_ImplOpenGL3_Init("#version 130");
+
+            SetupImgui();
+
+            lastFrameStartTime = GetSystemTimeSeconds();
+
+            return true;
+        }
+
+
+        const bool UpdateNativeWindow(AppState& state, const vr::VROverlayHandle_t overlayMainHandle) {
+
+            const ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+            glfwPollEvents();
+            int window_width, window_height;
+            glfwGetFramebufferSize(window, &window_width, &window_height);
+
+            if (true) { // just always assume the window is visible
+
+                // Window should follow overlay resolution
+                ImGuiIO& io = ImGui::GetIO();
+                io.DisplaySize = ImVec2((float)window_width, (float)window_height);
+                io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+
+                // Overlay should ignore mouse inputs from the hardware
+                /*io.ConfigFlags = io.ConfigFlags & ~ImGuiConfigFlags_NoMouseCursorChange;
+                if (dashboardVisible) {
+                    io.ConfigFlags = io.ConfigFlags | ImGuiConfigFlags_NoMouseCursorChange;
+                }*/
+
+                // Start the Dear ImGui frame
+                ImGui_ImplOpenGL3_NewFrame();
+                ImGui_ImplGlfw_NewFrame();
+                ImGui::NewFrame();
+
+                DrawUi(false, state);
+
+                // Rendering
+                ImGui::Render();
+                const float clearColorPremultiplied[4] = { clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w };
+
+                glViewport(0,0,window_width, window_height);
+                glClearColor(clearColorPremultiplied[0], clearColorPremultiplied[1], clearColorPremultiplied[2], clearColorPremultiplied[3]);
+                glClear(GL_COLOR_BUFFER_BIT);
+
+                ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+                glfwSwapBuffers(window);
+            } else {
+                const double targetFrameTime = 1.0 / MINIMISED_MAX_FPS;
+                const double waitTime = targetFrameTime - (GetSystemTimeSeconds() - lastFrameStartTime);
+                if (waitTime > 0) {
+                    std::this_thread::sleep_for(std::chrono::duration<double>(waitTime));
+                }
+
+                lastFrameStartTime += targetFrameTime;
+            }
+
+            return !glfwWindowShouldClose(window);
+        }
+
+        void DestroyWindow() {
+            CleanupImgui();
+
+            // Cleanup
+            ImGui_ImplOpenGL3_Shutdown();
+            ImGui_ImplGlfw_Shutdown();
+            ImGui::DestroyContext();
+
+            glfwDestroyWindow(window);
+            glfwTerminate();
+
+        }
+
+
+        #endif
     }
 }

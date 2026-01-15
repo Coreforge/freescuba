@@ -208,6 +208,32 @@ void ImGui::DrawVectorElement(std::string id, const char* text, double* value, d
     }
 }
 
+void ImGui::DrawVectorElement(std::string id, const char* text, float* value, double delta) {
+    ImGui::Text(text);
+
+    ImGui::SameLine();
+
+    ImGui::PushID((id + text + "_btn_reset").c_str());
+    if (ImGui::Button(" 0 ")) {
+        *value *= 0;
+    }
+    ImGui::PopID();
+    ImGui::SameLine();
+    if (ImGui::ArrowButton((id + text + "_decrease").c_str(), ImGuiDir_Down)) {
+        *value -= delta;
+    }
+    ImGui::SameLine();
+    ImGui::PushItemWidth(100);
+    ImGui::PushID((id + text + "_text_field").c_str());
+    ImGui::SliderFloat("##label", value, -M_PI, M_PI);
+    ImGui::PopID();
+    ImGui::PopItemWidth();
+    ImGui::SameLine();
+    if (ImGui::ArrowButton((id + text + "_increase").c_str(), ImGuiDir_Up)) {
+        *value += delta;
+    }
+}
+
 void ImGui::SliderFloatStyled(const char* label, float* v, float v_min, float v_max, const char* format, ImGuiSliderFlags flags) {
     ImGui::PushFont(fontBold);
     ImGui::Text(label);

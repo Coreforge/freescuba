@@ -390,11 +390,11 @@ void SerialCommunicationManager::ListenerThread() {
             // b1 and b2 are fully unknown, b3 must be anything but 0
             uint8_t cmd7[] = {0x10, 0x64, 0x00, 0x50, 0x00, 0xff};
             //WriteCommandRaw(cmd7,sizeof(cmd7));
-            printf("sent\n");
+            //printf("sent\n");
+            // gets sent periodically. No idea what it means, but it keeps the dongle from crashing
+            uint8_t keepalive[] = {0x1, 0x0, 0x0, 0xf0, 0x0, 0x0, 0xf0};
+            WriteCommandRaw(keepalive,sizeof(keepalive));
         }
-        // gets sent periodically. No idea what it means, but it keeps the dongle from crashing
-        uint8_t keepalive[] = {0x1, 0x0, 0x0, 0xf0, 0x0, 0x0, 0xf0};
-        WriteCommandRaw(keepalive,sizeof(keepalive));
         // write anything we need to
         WriteQueued();
         waitcounter++;
@@ -701,7 +701,7 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
 
         // KNOWN VALUES:
         // None             :: 0x1f ff   0001 1111 1111 1111
-        // "touchpad" Up    :: 0x1f 8a   0001 1111 1000 1010
+        // "touchpad" Up    :: 0x1f 8b   0001 1111 1000 1011
         // "touchpad" Down  :: 0x17 ff   0001 0111 1111 1111
         // A (BTN_DOWN)     :: 0x1d ff   0001 1101 1111 1111
         // B (BTN_UP)       :: 0x1e ff   0001 1110 1111 1111
@@ -711,7 +711,7 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
         // the second button value seems to not be a mask, but just a few fixed values instead
 
         outPacket->packet.gloveData.hasMagnetra     =   (button_mask & CONTACT_GLOVE_2_INPUT_MASK_MAGNETRA_PRESENT)   == CONTACT_GLOVE_2_INPUT_MASK_MAGNETRA_PRESENT;
-        outPacket->packet.gloveData.systemUp        = !((button2_mask & CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP)          == CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP);
+        outPacket->packet.gloveData.systemUp        = ((button2_mask & CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP)          == CONTACT_GLOVE_2_INPUT_VALUE_SYSTEM_UP);
         outPacket->packet.gloveData.systemDown      = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_DOWN)        == CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_DOWN);
         outPacket->packet.gloveData.buttonUp        = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_BUTTON_UP)          == CONTACT_GLOVE_2_INPUT_MASK_BUTTON_UP);
         outPacket->packet.gloveData.buttonDown      = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_BUTTON_DOWN)        == CONTACT_GLOVE_2_INPUT_MASK_BUTTON_DOWN);
@@ -730,7 +730,7 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
         //     outPacket->packet.gloveData.joystickY);
 
         // Left glove data packet
-         //PrintBuffer("glove_data_left", pData, length);
+        // PrintBuffer("glove_data_left", pData, length);
 
         decoded = true;
     }
@@ -804,7 +804,7 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
         // the second button value seems to not be a mask, but just a few fixed values instead
 
         outPacket->packet.gloveData.hasMagnetra     =   (button_mask & CONTACT_GLOVE_2_INPUT_MASK_MAGNETRA_PRESENT)   == CONTACT_GLOVE_2_INPUT_MASK_MAGNETRA_PRESENT;
-        outPacket->packet.gloveData.systemUp        = !((button2_mask & CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP)          == CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP);
+        outPacket->packet.gloveData.systemUp        = ((button2_mask & CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP)          == CONTACT_GLOVE_2_INPUT_VALUE_SYSTEM_UP);
         outPacket->packet.gloveData.systemDown      = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_DOWN)        == CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_DOWN);
         outPacket->packet.gloveData.buttonUp        = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_BUTTON_UP)          == CONTACT_GLOVE_2_INPUT_MASK_BUTTON_UP);
         outPacket->packet.gloveData.buttonDown      = !((button_mask & CONTACT_GLOVE_2_INPUT_MASK_BUTTON_DOWN)        == CONTACT_GLOVE_2_INPUT_MASK_BUTTON_DOWN);
@@ -909,7 +909,7 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
         } else {
             // Extract data
             outPacket->packet.gloveFingers.fingerThumbTip   = ((uint16_t*)(pData + 1))[9];
-            outPacket->packet.gloveFingers.fingerThumbRoot  = ((uint16_t*)(pData + 1))[8];
+            outPacket->packet.gloveFingers.fingerThumbRoot1  = ((uint16_t*)(pData + 1))[8];
             outPacket->packet.gloveFingers.fingerIndexTip   = ((uint16_t*)(pData + 1))[7];
             outPacket->packet.gloveFingers.fingerIndexRoot1  = ((uint16_t*)(pData + 1))[6];
             outPacket->packet.gloveFingers.fingerMiddleTip  = ((uint16_t*)(pData + 1))[5];
@@ -995,7 +995,7 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
         } else {
             // Extract data
             outPacket->packet.gloveFingers.fingerThumbTip   = ((uint16_t*)(pData + 1))[9];
-            outPacket->packet.gloveFingers.fingerThumbRoot  = ((uint16_t*)(pData + 1))[8];
+            outPacket->packet.gloveFingers.fingerThumbRoot1  = ((uint16_t*)(pData + 1))[8];
             outPacket->packet.gloveFingers.fingerIndexTip   = ((uint16_t*)(pData + 1))[7];
             outPacket->packet.gloveFingers.fingerIndexRoot1  = ((uint16_t*)(pData + 1))[6];
             outPacket->packet.gloveFingers.fingerMiddleTip  = ((uint16_t*)(pData + 1))[5];
@@ -1059,7 +1059,7 @@ bool SerialCommunicationManager::DecodePacket(const uint8_t* pData, const size_t
     default:
         // @FIXME: Use proper logging library
         //printf("[WARN] Got unknown packet with command code 0x%02hX!!\n", pData[0]);
-        PrintBuffer("unknown_packet", pData, length);
+        //PrintBuffer("unknown_packet", pData, length);
         break;
     }
 

@@ -86,9 +86,9 @@ void ReadPoseOffset(protocol::ContactGloveState_t::CalibrationData_t::PoseOffset
 
 		try {
 			picojson::object positionRoot = trackerOffsetRoot["position"].get<picojson::object>();
-			TryReadDouble(state.pos.v[0], positionRoot, "x");
-			TryReadDouble(state.pos.v[1], positionRoot, "y");
-			TryReadDouble(state.pos.v[2], positionRoot, "z");
+			TryReadFloat(state.pos[0], positionRoot, "x");
+			TryReadFloat(state.pos[1], positionRoot, "y");
+			TryReadFloat(state.pos[2], positionRoot, "z");
 			// state.pos.v[0] = positionRoot["x"].get<double>();
 			// state.pos.v[1] = positionRoot["y"].get<double>();
 			// state.pos.v[2] = positionRoot["z"].get<double>();
@@ -96,10 +96,10 @@ void ReadPoseOffset(protocol::ContactGloveState_t::CalibrationData_t::PoseOffset
 
 		try {
 			picojson::object rotationRoot = trackerOffsetRoot["rotation"].get<picojson::object>();
-			TryReadDouble(state.rot.x, rotationRoot, "x");
-			TryReadDouble(state.rot.y, rotationRoot, "y");
-			TryReadDouble(state.rot.z, rotationRoot, "z");
-			TryReadDouble(state.rot.w, rotationRoot, "w");
+			TryReadFloat(state.rot[0], rotationRoot, "x");
+			TryReadFloat(state.rot[1], rotationRoot, "y");
+			TryReadFloat(state.rot[2], rotationRoot, "z");
+			TryReadFloat(state.rot[3], rotationRoot, "w");
 			// state.rot.x = rotationRoot["x"].get<double>();
 			// state.rot.y = rotationRoot["y"].get<double>();
 			// state.rot.z = rotationRoot["z"].get<double>();
@@ -153,6 +153,7 @@ void ReadFingerJointCalibration(protocol::ContactGloveState_t::FingerJointCalibr
 		TryReadUint16(state.rest,	jsonObj, "rest");
 		TryReadUint16(state.bend,	jsonObj, "bend");
 		TryReadUint16(state.close,	jsonObj, "close");
+		TryReadUint16(state.splayed,	jsonObj, "splayed");
 	} catch (std::runtime_error) {}
 }
 
@@ -167,19 +168,41 @@ void ReadFingersCalibration(protocol::ContactGloveState_t::HandFingersCalibratio
 		ReadFingerJointCalibration(state.structInner, jointRoot##Json);							\
 	} catch (std::runtime_error) {}
 
+	READ_FINGER_CALIBRATION(thumbBase,	thumbBase);
 	READ_FINGER_CALIBRATION(thumbRoot,	thumb.proximal);
+	READ_FINGER_CALIBRATION(thumbRoot2,	thumb.proximal2);
 	READ_FINGER_CALIBRATION(thumbTip,	thumb.distal);
 	READ_FINGER_CALIBRATION(indexRoot,	index.proximal);
+	READ_FINGER_CALIBRATION(indexRoot2,	index.proximal2);
 	READ_FINGER_CALIBRATION(indexTip,	index.distal);
 	READ_FINGER_CALIBRATION(middleRoot,	middle.proximal);
+	READ_FINGER_CALIBRATION(middleRoot2,	middle.proximal2);
 	READ_FINGER_CALIBRATION(middleTip,	middle.distal);
 	READ_FINGER_CALIBRATION(ringRoot,	ring.proximal);
+	READ_FINGER_CALIBRATION(ringRoot2,	ring.proximal2);
 	READ_FINGER_CALIBRATION(ringTip,	ring.distal);
 	READ_FINGER_CALIBRATION(pinkyRoot,	pinky.proximal);
+	READ_FINGER_CALIBRATION(pinkyRoot2,	pinky.proximal2);
 	READ_FINGER_CALIBRATION(pinkyTip,	pinky.distal);
 
 #undef READ_FINGER_CALIBRATION
 	
+	} catch (std::runtime_error) {}
+}
+
+void ReadSplayCalibration(protocol::ContactGloveState_t::CalibrationData_t::SplayCalibration_t& state, picojson::object& jsonObj){
+	try{
+		picojson::object splayRoot = jsonObj["splay"].get<picojson::object>();
+		#define READ_FINGER_CALIBRATION(finger)\
+		TryReadFloat(state.finger.scale, splayRoot, #finger"Scale"); \
+		TryReadFloat(state.finger.offset, splayRoot, #finger"Offset");
+
+		READ_FINGER_CALIBRATION(thumb)
+		READ_FINGER_CALIBRATION(index)
+		READ_FINGER_CALIBRATION(middle)
+		READ_FINGER_CALIBRATION(ring)
+		READ_FINGER_CALIBRATION(pinky)
+		#undef READ_FINGER_CALIBRATION
 	} catch (std::runtime_error) {}
 }
 
@@ -241,6 +264,7 @@ void LoadConfiguration(AppState& state) {
 				ReadJoystickCalibration(state.gloveLeft.calibration.joystick, leftGloveObj);
 				ReadTriggerCalibration(state.gloveLeft.calibration.trigger, leftGloveObj);
 				ReadFingersCalibration(state.gloveLeft.calibration.fingers, leftGloveObj);
+				ReadSplayCalibration(state.gloveLeft.calibration.splay, leftGloveObj);
 				ReadGestures(state.gloveLeft.calibration.gestures, leftGloveObj);
 			} catch (std::runtime_error) {}
 
@@ -252,6 +276,7 @@ void LoadConfiguration(AppState& state) {
 				ReadJoystickCalibration(state.gloveRight.calibration.joystick, rightGloveObj);
 				ReadTriggerCalibration(state.gloveRight.calibration.trigger, rightGloveObj);
 				ReadFingersCalibration(state.gloveRight.calibration.fingers, rightGloveObj);
+				ReadSplayCalibration(state.gloveRight.calibration.splay, rightGloveObj);
 				ReadGestures(state.gloveRight.calibration.gestures, rightGloveObj);
 			} catch (std::runtime_error) {}
 
@@ -266,15 +291,15 @@ void WritePoseCalibration(protocol::ContactGloveState_t::CalibrationData_t::Pose
 	picojson::object trackerOffsetRoot;
 	picojson::object positionRoot;
 	picojson::object rotationRoot;
+	double buf;
+	buf = state.pos[0]; positionRoot["x"].set<double>(buf);
+	buf = state.pos[1]; positionRoot["y"].set<double>(buf);
+	buf = state.pos[2]; positionRoot["z"].set<double>(buf);
 
-	positionRoot["x"].set<double>(state.pos.v[0]);
-	positionRoot["y"].set<double>(state.pos.v[1]);
-	positionRoot["z"].set<double>(state.pos.v[2]);
-
-	rotationRoot["x"].set<double>(state.rot.x);
-	rotationRoot["y"].set<double>(state.rot.y);
-	rotationRoot["z"].set<double>(state.rot.z);
-	rotationRoot["w"].set<double>(state.rot.w);
+	buf = state.rot[0]; rotationRoot["x"].set<double>(buf);
+	buf = state.rot[1]; rotationRoot["y"].set<double>(buf);
+	buf = state.rot[2]; rotationRoot["z"].set<double>(buf);
+	buf = state.rot[3]; rotationRoot["w"].set<double>(buf);
 
 	trackerOffsetRoot["position"].set<picojson::object>(positionRoot);
 	trackerOffsetRoot["rotation"].set<picojson::object>(rotationRoot);
@@ -315,6 +340,8 @@ void WriteFingerJointCalibration(protocol::ContactGloveState_t::FingerJointCalib
 	jsonObj["bend"].set<double>( buf );
 	buf = state.close;
 	jsonObj["close"].set<double>( buf );
+	buf = state.splayed;
+	jsonObj["splayed"].set<double>( buf );
 }
 
 void WriteFingersCalibration(protocol::ContactGloveState_t::HandFingersCalibrationData_t& state, picojson::object& jsonObj) {
@@ -326,20 +353,44 @@ void WriteFingersCalibration(protocol::ContactGloveState_t::HandFingersCalibrati
 	WriteFingerJointCalibration(state.structInner, jointRoot##Json);	\
 	fingersRoot[#jointRoot].set<picojson::object>(jointRoot##Json);
 
+	WRITE_FINGER_CALIBRATION(thumbBase,		thumbBase);
 	WRITE_FINGER_CALIBRATION(thumbRoot,		thumb.proximal);
+	WRITE_FINGER_CALIBRATION(thumbRoot2,		thumb.proximal2);
 	WRITE_FINGER_CALIBRATION(thumbTip,		thumb.distal);
 	WRITE_FINGER_CALIBRATION(indexRoot,		index.proximal);
+	WRITE_FINGER_CALIBRATION(indexRoot2,		index.proximal2);
 	WRITE_FINGER_CALIBRATION(indexTip,		index.distal);
 	WRITE_FINGER_CALIBRATION(middleRoot,	middle.proximal);
+	WRITE_FINGER_CALIBRATION(middleRoot2,	middle.proximal2);
 	WRITE_FINGER_CALIBRATION(middleTip,		middle.distal);
 	WRITE_FINGER_CALIBRATION(ringRoot,		ring.proximal);
+	WRITE_FINGER_CALIBRATION(ringRoot2,		ring.proximal2);
 	WRITE_FINGER_CALIBRATION(ringTip,		ring.distal);
 	WRITE_FINGER_CALIBRATION(pinkyRoot,		pinky.proximal);
+	WRITE_FINGER_CALIBRATION(pinkyRoot2,		pinky.proximal2);
 	WRITE_FINGER_CALIBRATION(pinkyTip,		pinky.distal);
 
 #undef WRITE_FINGER_CALIBRATION
 
 	jsonObj["fingers"].set<picojson::object>(fingersRoot);
+}
+
+void WriteSplayCalibration(protocol::ContactGloveState_t::CalibrationData_t::SplayCalibration_t& state, picojson::object& jsonObj){
+	picojson::object splayRoot;
+	double buf;
+	#define WRITE_FINGER_CALIBRATION(finger)\
+	buf = state.finger.scale;\
+	splayRoot[#finger"Scale"].set<double>(buf); \
+	buf = state.finger.offset;\
+	splayRoot[#finger"Offset"].set<double>(buf);
+
+	WRITE_FINGER_CALIBRATION(thumb)
+	WRITE_FINGER_CALIBRATION(index)
+	WRITE_FINGER_CALIBRATION(middle)
+	WRITE_FINGER_CALIBRATION(ring)
+	WRITE_FINGER_CALIBRATION(pinky)
+	#undef WRITE_FINGER_CALIBRATION
+	jsonObj["splay"].set<picojson::object>(splayRoot);
 }
 
 void WriteThresholds(protocol::ContactGloveState_t::CalibrationData_t::GestureCalibration_t& state, picojson::object& jsonObj) {
@@ -374,7 +425,6 @@ void SaveConfiguration(AppState& state) {
 
 	// Saves the config file to disk
 	std::ofstream fileStream(s_configPath);
-	printf("Opened config file\n");
 	if (fileStream.is_open()) {
 
 		picojson::object config;
@@ -386,6 +436,7 @@ void SaveConfiguration(AppState& state) {
 		WriteJoystickCalibration(state.gloveLeft.calibration.joystick, gloveLeftConfig);
 		WriteTriggerCalibration(state.gloveLeft.calibration.trigger, gloveLeftConfig);
 		WriteFingersCalibration(state.gloveLeft.calibration.fingers, gloveLeftConfig);
+		WriteSplayCalibration(state.gloveLeft.calibration.splay, gloveLeftConfig);
 		WriteThresholds(state.gloveLeft.calibration.gestures, gloveLeftConfig);
 
 		picojson::object gloveRightConfig;
@@ -395,6 +446,7 @@ void SaveConfiguration(AppState& state) {
 		WriteJoystickCalibration(state.gloveRight.calibration.joystick, gloveRightConfig);
 		WriteTriggerCalibration(state.gloveRight.calibration.trigger, gloveRightConfig);
 		WriteFingersCalibration(state.gloveRight.calibration.fingers, gloveRightConfig);
+		WriteSplayCalibration(state.gloveRight.calibration.splay, gloveRightConfig);
 		WriteThresholds(state.gloveRight.calibration.gestures, gloveRightConfig);
 
 		config["left"].set<picojson::object>(gloveLeftConfig);

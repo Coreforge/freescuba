@@ -1,4 +1,6 @@
 #include "app_state.hpp"
+#include "glove_model.hpp"
+#include "imgui_extensions.hpp"
 #define _USE_MATH_DEFINES
 #include <openvr.h>
 
@@ -204,14 +206,25 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
             {
                 ImGui::Spacing();
                 ImGui::Spacing();
-                if (ImGui::BeginTable((id + "_fingers_table").c_str(), 4, ImGuiTableFlags_SizingFixedFit))
+                if (ImGui::BeginTable((id + "_fingers_table").c_str(), 5, ImGuiTableFlags_SizingFixedFit))
                 {
                     float windowWidth = ImGui::GetWindowWidth();
                     ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, 0.0f);
                     ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, 0.0f);
-                    float widthBars = (windowWidth - ImGui::GetColumnWidth(0) - ImGui::GetColumnWidth(1)) * 0.5f;
+                    float widthBars = (windowWidth - ImGui::GetColumnWidth(0) - ImGui::GetColumnWidth(1)) * 0.33f;
                     ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, widthBars);
                     ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, widthBars);
+                    ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, widthBars);
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::PushFont(fontBold);
+                    ImGui::Text("Thumb Base");
+                    ImGui::PopFont();
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::Text("(%.4f)", glove.thumbBase);
+                    ImGui::TableSetColumnIndex(2);
+                    DRAW_FINGER_BEND_VALUE(glove.thumbBase);
 
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
@@ -219,11 +232,13 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                     ImGui::Text("Thumb");
                     ImGui::PopFont();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("(%.4f, %.4f)", glove.thumbRoot, glove.thumbTip);
+                    ImGui::Text("(%.4f, %.4f, %.4f)", glove.thumbRoot, glove.thumbTip, glove.thumbSplay);
                     ImGui::TableSetColumnIndex(2);
                     DRAW_FINGER_BEND_VALUE(glove.thumbRoot);
                     ImGui::TableSetColumnIndex(3);
                     DRAW_FINGER_BEND_VALUE(glove.thumbTip);
+                    ImGui::TableSetColumnIndex(4);
+                    DRAW_FINGER_BEND_VALUE(glove.thumbSplay);
 
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
@@ -231,11 +246,13 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                     ImGui::Text("Index finger");
                     ImGui::PopFont();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("(%.4f, %.4f)", glove.indexRoot, glove.indexTip);
+                    ImGui::Text("(%.4f, %.4f, %.4f)", glove.indexRoot, glove.indexTip, glove.indexSplay);
                     ImGui::TableSetColumnIndex(2);
                     DRAW_FINGER_BEND_VALUE(glove.indexRoot);
                     ImGui::TableSetColumnIndex(3);
                     DRAW_FINGER_BEND_VALUE(glove.indexTip);
+                    ImGui::TableSetColumnIndex(4);
+                    DRAW_FINGER_BEND_VALUE(glove.indexSplay);
 
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
@@ -243,11 +260,13 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                     ImGui::Text("Middle finger");
                     ImGui::PopFont();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("(%.4f, %.4f)", glove.middleRoot, glove.middleTip);
+                    ImGui::Text("(%.4f, %.4f, %.4f)", glove.middleRoot, glove.middleTip, glove.middleSplay);
                     ImGui::TableSetColumnIndex(2);
                     DRAW_FINGER_BEND_VALUE(glove.middleRoot);
                     ImGui::TableSetColumnIndex(3);
                     DRAW_FINGER_BEND_VALUE(glove.middleTip);
+                    ImGui::TableSetColumnIndex(4);
+                    DRAW_FINGER_BEND_VALUE(glove.middleSplay);
 
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
@@ -255,11 +274,13 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                     ImGui::Text("Ring finger");
                     ImGui::PopFont();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("(%.4f, %.4f)", glove.ringRoot, glove.ringTip);
+                    ImGui::Text("(%.4f, %.4f, %.4f)", glove.ringRoot, glove.ringTip, glove.ringSplay);
                     ImGui::TableSetColumnIndex(2);
                     DRAW_FINGER_BEND_VALUE(glove.ringRoot);
                     ImGui::TableSetColumnIndex(3);
                     DRAW_FINGER_BEND_VALUE(glove.ringTip);
+                    ImGui::TableSetColumnIndex(4);
+                    DRAW_FINGER_BEND_VALUE(glove.ringSplay);
 
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
@@ -267,11 +288,13 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                     ImGui::Text("Pinky finger");
                     ImGui::PopFont();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("(%.4f, %.4f)", glove.pinkyRoot, glove.pinkyTip);
+                    ImGui::Text("(%.4f, %.4f, %.4f)", glove.pinkyRoot, glove.pinkyTip, glove.pinkySplay);
                     ImGui::TableSetColumnIndex(2);
                     DRAW_FINGER_BEND_VALUE(glove.pinkyRoot);
                     ImGui::TableSetColumnIndex(3);
                     DRAW_FINGER_BEND_VALUE(glove.pinkyTip);
+                    ImGui::TableSetColumnIndex(4);
+                    DRAW_FINGER_BEND_VALUE(glove.pinkySplay);
 
                     ImGui::EndTable();
                 }
@@ -290,6 +313,44 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                 }
 
                 ImGui::Checkbox("Use finger curl", &glove.useCurl);
+
+                ImGui::Spacing();
+
+                ImGui::PushID((id + "_fingers_splay_group").c_str());
+                ImGui::BeginGroupPanel("Splay");
+                {
+                    if (ImGui::BeginTable((id + "_fingers_splay_group").c_str(), 3, ImGuiTableFlags_SizingFixedFit)) {
+                        ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, 0.0f);   
+                        ImGui::TableSetupColumn("Scale", ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, 0.0f);
+                        ImGui::TableSetupColumn("Offset", ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, 0.0f);
+
+                        ImGui::TableNextRow();
+
+#define DRAW_SPLAY_SLIDERS(finger, label) \
+                        ImGui::TableSetColumnIndex(0); \
+                        ImGui::PushFont(fontBold); \
+                        ImGui::Text(label); \
+                        ImGui::PopFont(); \
+                        ImGui::TableSetColumnIndex(1); \
+                        ImGui::SliderFloat((std::string("##") + label" scale").c_str(), &glove.calibration.splay.finger.scale, 0.f, 2.f); \
+                        ImGui::TableSetColumnIndex(2); \
+                        ImGui::SliderFloat((std::string("##") + label" offset").c_str(), &glove.calibration.splay.finger.offset, -1.f, 1.f);
+
+                        DRAW_SPLAY_SLIDERS(thumb, "Thumb")
+                        ImGui::TableNextRow();
+                        DRAW_SPLAY_SLIDERS(index, "Index")
+                        ImGui::TableNextRow();
+                        DRAW_SPLAY_SLIDERS(middle, "Middle")
+                        ImGui::TableNextRow();
+                        DRAW_SPLAY_SLIDERS(ring, "Ring")
+                        ImGui::TableNextRow();
+                        DRAW_SPLAY_SLIDERS(pinky, "Pinky")
+
+                        ImGui::EndTable();
+                    }
+                }
+                ImGui::EndGroupPanel();
+                ImGui::PopID();
 
                 ImGui::Spacing();
 
@@ -325,15 +386,23 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                 }
                 
                 if (ImGui::CollapsingHeader("Raw values")) {
-                    ImGui::Text("Thumb Root:  %d", glove.thumbRootRaw);
+#define FINGER_ROOT(label, finger) \
+                    ImGui::Text(label " Root:  %d %d %.4f %d", glove.finger##Root1Raw, glove.finger##Root2Raw, (float)glove.finger##Root1Raw/glove.finger##Root2Raw, glove.finger##Root1Raw + glove.finger##Root2Raw)
+                    ImGui::Text("Thumb Base:   %d", glove.thumbBaseRaw);
+                    FINGER_ROOT("Thumb", thumb);
+                    //ImGui::Text("Thumb Root:  %d %d %.4f %d %d", glove.thumbRoot1Raw, glove.thumbRoot2Raw, (float)glove.thumbRoot1Raw/glove.thumbRoot2Raw);
                     ImGui::Text("Thumb Tip:   %d", glove.thumbTipRaw);
-                    ImGui::Text("Index Root:  %d", glove.indexRootRaw);
+                    //ImGui::Text("Index Root:  %d %d %.4f %d %d", glove.indexRoot1Raw, glove.indexRoot2Raw, (float)glove.indexRoot1Raw/glove.indexRoot2Raw);
+                    FINGER_ROOT("Index", index);
                     ImGui::Text("Index Tip:   %d", glove.indexTipRaw);
-                    ImGui::Text("Middle Root: %d", glove.middleRootRaw);
+                    //ImGui::Text("Middle Root: %d %d %.4f %d %d", glove.middleRoot1Raw, glove.middleRoot2Raw, (float)glove.middleRoot1Raw/glove.middleRoot2Raw);
+                    FINGER_ROOT("Middle", middle);
                     ImGui::Text("Middle Tip:  %d", glove.middleTipRaw);
-                    ImGui::Text("Ring Root:   %d", glove.ringRootRaw);
+                    //ImGui::Text("Ring Root:   %d %d %.4f %d %d", glove.ringRoot1Raw, glove.ringRoot2Raw, (float)glove.ringRoot1Raw/glove.ringRoot2Raw);
+                    FINGER_ROOT("Ring", ring);
                     ImGui::Text("Ring Tip:    %d", glove.ringTipRaw);
-                    ImGui::Text("Pinky Root:  %d", glove.pinkyRootRaw);
+                    //ImGui::Text("Pinky Root:  %d %d %.4f %d %d", glove.pinkyRoot1Raw, glove.pinkyRoot2Raw, (float)glove.pinkyRoot1Raw/glove.pinkyRoot2Raw);
+                    FINGER_ROOT("Pinky", pinky);
                     ImGui::Text("Pinky Tip:   %d", glove.pinkyTipRaw);
                 }
 
@@ -360,23 +429,24 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                 ImGui::PushID((id + "_offset_adjust_group").c_str());
                 // Disallow tracker calibration if a tracker is not available
                 ImGui::BeginDisabled(glove.trackerIndex == CONTACT_GLOVE_INVALID_DEVICE_ID);
-
+                #ifdef WIN32
                 if (ImGui::Button("Calibrate offset")) {
                     state.uiState.page = ScreenState_t::ScreenStateCalibrateOffset;
                     state.uiState.calibrationState = CalibrationState_t::State_Entering;
                 }
+                #endif
 
                 ImGui::SameLine();
 
                 if (ImGui::Button("Reset offset")) {
-                    glove.calibration.poseOffset.pos.v[0] = 0;
-                    glove.calibration.poseOffset.pos.v[1] = 0;
-                    glove.calibration.poseOffset.pos.v[2] = 0;
+                    glove.calibration.poseOffset.pos[0] = 0;
+                    glove.calibration.poseOffset.pos[1] = 0;
+                    glove.calibration.poseOffset.pos[2] = 0;
 
-                    glove.calibration.poseOffset.rot.x = 0.0f;
-                    glove.calibration.poseOffset.rot.y = 0.0f;
-                    glove.calibration.poseOffset.rot.z = 0.0f;
-                    glove.calibration.poseOffset.rot.w = 1.0f;
+                    glove.calibration.poseOffset.rot[0] = 0.0f;
+                    glove.calibration.poseOffset.rot[1] = 0.0f;
+                    glove.calibration.poseOffset.rot[2] = 0.0f;
+                    glove.calibration.poseOffset.rot[3] = 1.0f;
                 }
 
                 ImGui::EndDisabled();
@@ -387,9 +457,41 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                 ImGui::PopFont();
                 ImGui::Spacing();
 
-                ImGui::DrawVectorElement(id + "_tracker_position_offset", "X", &glove.calibration.poseOffset.pos.v[0]);
-                ImGui::DrawVectorElement(id + "_tracker_position_offset", "Y", &glove.calibration.poseOffset.pos.v[1]);
-                ImGui::DrawVectorElement(id + "_tracker_position_offset", "Z", &glove.calibration.poseOffset.pos.v[2]);
+                ImGui::DrawVectorElement(id + "_tracker_position_offset", "X", &glove.calibration.poseOffset.pos[0]);
+                ImGui::DrawVectorElement(id + "_tracker_position_offset", "Y", &glove.calibration.poseOffset.pos[1]);
+                ImGui::DrawVectorElement(id + "_tracker_position_offset", "Z", &glove.calibration.poseOffset.pos[2]);
+
+                ImGui::Spacing();
+                ImGui::PushFont(fontBold);
+                ImGui::Text("Rotation Offset");
+                ImGui::PopFont();
+                ImGui::Spacing();
+
+                ImGui::DrawVectorElement(id + "_tracker_rotation_offset", "X", &glove.calibration.poseOffset.rot[0]);
+                ImGui::DrawVectorElement(id + "_tracker_rotation_offset", "Y", &glove.calibration.poseOffset.rot[1]);
+                ImGui::DrawVectorElement(id + "_tracker_rotation_offset", "Z", &glove.calibration.poseOffset.rot[2]);
+                ImGui::DrawVectorElement(id + "_tracker_rotation_offset", "W", &glove.calibration.poseOffset.rot[3]);
+
+                ImGui::Spacing();
+                ImGui::Checkbox("Add grip offset", &glove.calibration.use_custom_grip);
+                ImGui::PushFont(fontBold);
+                ImGui::Text("Grip Position Offset");
+                ImGui::PopFont();
+                ImGui::Spacing();
+
+                ImGui::DrawVectorElement(id + "_grip_position_offset", "X", &glove.calibration.grip_offset[0]);
+                ImGui::DrawVectorElement(id + "_grip_position_offset", "Y", &glove.calibration.grip_offset[1]);
+                ImGui::DrawVectorElement(id + "_grip_position_offset", "Z", &glove.calibration.grip_offset[2]);
+
+                ImGui::Spacing();
+                ImGui::PushFont(fontBold);
+                ImGui::Text("Grip Rotation Offset");
+                ImGui::PopFont();
+                ImGui::Spacing();
+
+                ImGui::DrawVectorElement(id + "_grip_rotation_offset", "X", &glove.calibration.grip_rotation[0]);
+                ImGui::DrawVectorElement(id + "_grip_rotation_offset", "Y", &glove.calibration.grip_rotation[1]);
+                ImGui::DrawVectorElement(id + "_grip_rotation_offset", "Z", &glove.calibration.grip_rotation[2]);
 
                 ImGui::PopID();
             }
@@ -634,13 +736,16 @@ void DrawCalibrateFingers(AppState& state) {
     ImGui::BeginGroupPanel("Finger Calibration");
     {
         protocol::ContactGloveState_t* desiredGlove = nullptr;
+        GloveModelSolver* solver;
         if (state.uiState.processingHandedness == Handedness_t::Left) {
             ImGui::Text("Calibrating Left Glove Fingers...");
             desiredGlove = &state.gloveLeft;
+            solver = &state.solverLeft;
         }
         else {
             ImGui::Text("Calibrating Right Glove Fingers...");
             desiredGlove = &state.gloveRight;
+            solver = &state.solverRight;
         }
 
         // Handled here so that we don't get a blank frame
@@ -666,26 +771,32 @@ void DrawCalibrateFingers(AppState& state) {
             case CalibrationState_t::Fingers_DiscoverNeutral:
             {
                 // Fingers are open, thumb is closed
-                ImGui::Text("Rest your fingers naturally, and close your thumb. Try aligning the fingers with the way you see them in VRChat for better accuracy.");
+                ImGui::Text("Rest your fingers naturally. Try aligning the fingers with the way you see them in VRChat for better accuracy.");
 
-                state.uiState.currentCalibration.fingers.thumb.proximal.close	= desiredGlove->thumbRootRaw;
-                state.uiState.currentCalibration.fingers.thumb.distal.close		= desiredGlove->thumbTipRaw;
+                state.uiState.currentCalibration.fingers.thumb.proximal.rest	= desiredGlove->thumbRoot1Raw;
+                state.uiState.currentCalibration.fingers.thumb.proximal2.rest	= desiredGlove->thumbRoot2Raw;
+                state.uiState.currentCalibration.fingers.thumb.distal.rest		= desiredGlove->thumbTipRaw;
+                state.uiState.currentCalibration.fingers.thumbBase.rest		= desiredGlove->thumbBaseRaw;
 
-                state.uiState.currentCalibration.fingers.index.proximal.rest	= desiredGlove->indexRootRaw;
+                state.uiState.currentCalibration.fingers.index.proximal.rest	= desiredGlove->indexRoot1Raw;
+                state.uiState.currentCalibration.fingers.index.proximal2.rest	= desiredGlove->indexRoot2Raw;
                 state.uiState.currentCalibration.fingers.index.distal.rest		= desiredGlove->indexTipRaw;
 
-                state.uiState.currentCalibration.fingers.middle.proximal.rest	= desiredGlove->middleRootRaw;
+                state.uiState.currentCalibration.fingers.middle.proximal.rest	= desiredGlove->middleRoot1Raw;
+                state.uiState.currentCalibration.fingers.middle.proximal2.rest	= desiredGlove->middleRoot2Raw;
                 state.uiState.currentCalibration.fingers.middle.distal.rest		= desiredGlove->middleTipRaw;
 
-                state.uiState.currentCalibration.fingers.ring.proximal.rest		= desiredGlove->ringRootRaw;
+                state.uiState.currentCalibration.fingers.ring.proximal.rest		= desiredGlove->ringRoot1Raw;
+                state.uiState.currentCalibration.fingers.ring.proximal2.rest		= desiredGlove->ringRoot2Raw;
                 state.uiState.currentCalibration.fingers.ring.distal.rest		= desiredGlove->ringTipRaw;
 
-                state.uiState.currentCalibration.fingers.pinky.proximal.rest	= desiredGlove->pinkyRootRaw;
+                state.uiState.currentCalibration.fingers.pinky.proximal.rest	= desiredGlove->pinkyRoot1Raw;
+                state.uiState.currentCalibration.fingers.pinky.proximal2.rest	= desiredGlove->pinkyRoot2Raw;
                 state.uiState.currentCalibration.fingers.pinky.distal.rest		= desiredGlove->pinkyTipRaw;
 
                 // Override the fingers because we're mid-calibration
-                desiredGlove->thumbRoot     = 1;
-                desiredGlove->thumbTip      = 1;
+                desiredGlove->thumbRoot     = 0;
+                desiredGlove->thumbTip      = 0;
                 desiredGlove->indexRoot     = 0;
                 desiredGlove->indexTip      = 0;
                 desiredGlove->middleRoot    = 0;
@@ -708,26 +819,32 @@ void DrawCalibrateFingers(AppState& state) {
             case CalibrationState_t::Fingers_DiscoverClosed:
             {
                 // Fingers are closed, thumb is expanded
-                ImGui::Text("Close your fingers, and rest your thumb naturally. Try aligning the fingers with the way you see them in VRChat for better accuracy.");
+                ImGui::Text("Close your hand. Try aligning the fingers with the way you see them in VRChat for better accuracy.");
 
-                state.uiState.currentCalibration.fingers.thumb.proximal.rest	= desiredGlove->thumbRootRaw;
-                state.uiState.currentCalibration.fingers.thumb.distal.rest		= desiredGlove->thumbTipRaw;
+                state.uiState.currentCalibration.fingers.thumb.proximal.close	= desiredGlove->thumbRoot1Raw;
+                state.uiState.currentCalibration.fingers.thumb.proximal2.close	= desiredGlove->thumbRoot2Raw;
+                state.uiState.currentCalibration.fingers.thumb.distal.close		= desiredGlove->thumbTipRaw;
+                state.uiState.currentCalibration.fingers.thumbBase.close		= desiredGlove->thumbBaseRaw;
 
-                state.uiState.currentCalibration.fingers.index.proximal.close	= desiredGlove->indexRootRaw;
+                state.uiState.currentCalibration.fingers.index.proximal.close	= desiredGlove->indexRoot1Raw;
+                state.uiState.currentCalibration.fingers.index.proximal2.close	= desiredGlove->indexRoot2Raw;
                 state.uiState.currentCalibration.fingers.index.distal.close		= desiredGlove->indexTipRaw;
 
-                state.uiState.currentCalibration.fingers.middle.proximal.close	= desiredGlove->middleRootRaw;
+                state.uiState.currentCalibration.fingers.middle.proximal.close	= desiredGlove->middleRoot1Raw;
+                state.uiState.currentCalibration.fingers.middle.proximal2.close	= desiredGlove->middleRoot2Raw;
                 state.uiState.currentCalibration.fingers.middle.distal.close	= desiredGlove->middleTipRaw;
 
-                state.uiState.currentCalibration.fingers.ring.proximal.close    = desiredGlove->ringRootRaw;
+                state.uiState.currentCalibration.fingers.ring.proximal.close    = desiredGlove->ringRoot1Raw;
+                state.uiState.currentCalibration.fingers.ring.proximal2.close    = desiredGlove->ringRoot2Raw;
                 state.uiState.currentCalibration.fingers.ring.distal.close		= desiredGlove->ringTipRaw;
 
-                state.uiState.currentCalibration.fingers.pinky.proximal.close	= desiredGlove->pinkyRootRaw;
+                state.uiState.currentCalibration.fingers.pinky.proximal.close	= desiredGlove->pinkyRoot1Raw;
+                state.uiState.currentCalibration.fingers.pinky.proximal2.close	= desiredGlove->pinkyRoot2Raw;
                 state.uiState.currentCalibration.fingers.pinky.distal.close		= desiredGlove->pinkyTipRaw;
 
                 // Override the fingers because we're mid-calibration
-                desiredGlove->thumbRoot     = 0;
-                desiredGlove->thumbTip      = 0;
+                desiredGlove->thumbRoot     = 1;
+                desiredGlove->thumbTip      = 1;
                 desiredGlove->indexRoot     = 1;
                 desiredGlove->indexTip      = 1;
                 desiredGlove->middleRoot    = 1;
@@ -742,6 +859,40 @@ void DrawCalibrateFingers(AppState& state) {
 
                 if (ImGui::Button("Continue") || anyButtonPressedJoystick) {
                     // Move to the next state
+                    state.uiState.calibrationState = CalibrationState_t::Fingers_DiscoverSplayed;
+                }
+
+                break;
+            }
+            case CalibrationState_t::Fingers_DiscoverSplayed:
+            {
+                ImGui::Text("Spread your fingers apart, otherwise keeping them open (splay)");
+
+                state.uiState.currentCalibration.fingers.thumb.proximal.splayed	= desiredGlove->thumbRoot1Raw;
+                state.uiState.currentCalibration.fingers.thumb.proximal2.splayed	= desiredGlove->thumbRoot2Raw;
+                state.uiState.currentCalibration.fingers.thumb.distal.splayed		= desiredGlove->thumbTipRaw;
+                state.uiState.currentCalibration.fingers.thumbBase.splayed		= desiredGlove->thumbBaseRaw;   // not currently used
+
+                state.uiState.currentCalibration.fingers.index.proximal.splayed	= desiredGlove->indexRoot1Raw;
+                state.uiState.currentCalibration.fingers.index.proximal2.splayed	= desiredGlove->indexRoot2Raw;
+                state.uiState.currentCalibration.fingers.index.distal.splayed		= desiredGlove->indexTipRaw;
+
+                state.uiState.currentCalibration.fingers.middle.proximal.splayed	= desiredGlove->middleRoot1Raw;
+                state.uiState.currentCalibration.fingers.middle.proximal2.splayed	= desiredGlove->middleRoot2Raw;
+                state.uiState.currentCalibration.fingers.middle.distal.splayed	= desiredGlove->middleTipRaw;
+
+                state.uiState.currentCalibration.fingers.ring.proximal.splayed    = desiredGlove->ringRoot1Raw;
+                state.uiState.currentCalibration.fingers.ring.proximal2.splayed    = desiredGlove->ringRoot2Raw;
+                state.uiState.currentCalibration.fingers.ring.distal.splayed		= desiredGlove->ringTipRaw;
+
+                state.uiState.currentCalibration.fingers.pinky.proximal.splayed	= desiredGlove->pinkyRoot1Raw;
+                state.uiState.currentCalibration.fingers.pinky.proximal2.splayed	= desiredGlove->pinkyRoot2Raw;
+                state.uiState.currentCalibration.fingers.pinky.distal.splayed		= desiredGlove->pinkyTipRaw;
+                // Proceed on any input
+                ImGui::Text("Press any button to continue...");
+
+                if (ImGui::Button("Continue") || anyButtonPressedJoystick) {
+                    // Move to the next state
                     // state.uiState.calibrationState = CalibrationState::Fingers_DiscoverClosed;
 
                     // Move to the next state
@@ -750,8 +901,8 @@ void DrawCalibrateFingers(AppState& state) {
 
                     // Copy the new calibration back
                     memcpy(&desiredGlove->calibration, &state.uiState.currentCalibration, sizeof(protocol::ContactGloveState_t::CalibrationData_t));
+                    solver->calibrate(desiredGlove->calibration.fingers);
                 }
-
                 break;
             }
             case CalibrationState_t::Fingers_DiscoverBackwardsBend:
@@ -845,35 +996,35 @@ void DrawCalibrateFingersSingle(AppState& state) {
             ImGui::Text("Rest your fingers naturally, and close your thumb. Try aligning the fingers with the way you see them in VRChat for better accuracy.");
 
             if (state.uiState.targetFinger == CalibrationFinger_t::Finger_Thumb) {
-                state.uiState.currentCalibration.fingers.thumb.proximal.close   = desiredGlove->thumbRootRaw;
+                state.uiState.currentCalibration.fingers.thumb.proximal.close   = desiredGlove->thumbRoot1Raw;
                 state.uiState.currentCalibration.fingers.thumb.distal.close     = desiredGlove->thumbTipRaw;
                 desiredGlove->thumbRoot = 1;
                 desiredGlove->thumbTip = 1;
             }
 
             if (state.uiState.targetFinger == CalibrationFinger_t::Finger_Index) {
-                state.uiState.currentCalibration.fingers.index.proximal.rest    = desiredGlove->indexRootRaw;
+                state.uiState.currentCalibration.fingers.index.proximal.rest    = desiredGlove->indexRoot1Raw;
                 state.uiState.currentCalibration.fingers.index.distal.rest      = desiredGlove->indexTipRaw;
                 desiredGlove->indexRoot = 0;
                 desiredGlove->indexTip = 0;
             }
 
             if (state.uiState.targetFinger == CalibrationFinger_t::Finger_Middle) {
-                state.uiState.currentCalibration.fingers.middle.proximal.rest   = desiredGlove->middleRootRaw;
+                state.uiState.currentCalibration.fingers.middle.proximal.rest   = desiredGlove->middleRoot1Raw;
                 state.uiState.currentCalibration.fingers.middle.distal.rest     = desiredGlove->middleTipRaw;
                 desiredGlove->middleRoot = 0;
                 desiredGlove->middleTip = 0;
             }
 
             if (state.uiState.targetFinger == CalibrationFinger_t::Finger_Ring) {
-                state.uiState.currentCalibration.fingers.ring.proximal.rest     = desiredGlove->ringRootRaw;
+                state.uiState.currentCalibration.fingers.ring.proximal.rest     = desiredGlove->ringRoot1Raw;
                 state.uiState.currentCalibration.fingers.ring.distal.rest       = desiredGlove->ringTipRaw;
                 desiredGlove->ringRoot = 0;
                 desiredGlove->ringTip = 0;
             }
 
             if (state.uiState.targetFinger == CalibrationFinger_t::Finger_Pinky) {
-                state.uiState.currentCalibration.fingers.pinky.proximal.rest    = desiredGlove->pinkyRootRaw;
+                state.uiState.currentCalibration.fingers.pinky.proximal.rest    = desiredGlove->pinkyRoot1Raw;
                 state.uiState.currentCalibration.fingers.pinky.distal.rest      = desiredGlove->pinkyTipRaw;
                 desiredGlove->pinkyRoot = 0;
                 desiredGlove->pinkyTip = 0;
@@ -895,35 +1046,35 @@ void DrawCalibrateFingersSingle(AppState& state) {
             ImGui::Text("Close your fingers, and rest your thumb naturally. Try aligning the fingers with the way you see them in VRChat for better accuracy.");
 
             if (state.uiState.targetFinger == CalibrationFinger_t::Finger_Thumb) {
-                state.uiState.currentCalibration.fingers.thumb.proximal.rest    = desiredGlove->thumbRootRaw;
+                state.uiState.currentCalibration.fingers.thumb.proximal.rest    = desiredGlove->thumbRoot1Raw;
                 state.uiState.currentCalibration.fingers.thumb.distal.rest      = desiredGlove->thumbTipRaw;
                 desiredGlove->thumbRoot = 0;
                 desiredGlove->thumbTip = 0;
             }
 
             if (state.uiState.targetFinger == CalibrationFinger_t::Finger_Index) {
-                state.uiState.currentCalibration.fingers.index.proximal.close   = desiredGlove->indexRootRaw;
+                state.uiState.currentCalibration.fingers.index.proximal.close   = desiredGlove->indexRoot1Raw;
                 state.uiState.currentCalibration.fingers.index.distal.close     = desiredGlove->indexTipRaw;
                 desiredGlove->indexRoot = 1;
                 desiredGlove->indexTip = 1;
             }
 
             if (state.uiState.targetFinger == CalibrationFinger_t::Finger_Middle) {
-                state.uiState.currentCalibration.fingers.middle.proximal.close  = desiredGlove->middleRootRaw;
+                state.uiState.currentCalibration.fingers.middle.proximal.close  = desiredGlove->middleRoot1Raw;
                 state.uiState.currentCalibration.fingers.middle.distal.close    = desiredGlove->middleTipRaw;
                 desiredGlove->middleRoot = 1;
                 desiredGlove->middleTip = 1;
             }
 
             if (state.uiState.targetFinger == CalibrationFinger_t::Finger_Ring) {
-                state.uiState.currentCalibration.fingers.ring.proximal.close    = desiredGlove->ringRootRaw;
+                state.uiState.currentCalibration.fingers.ring.proximal.close    = desiredGlove->ringRoot1Raw;
                 state.uiState.currentCalibration.fingers.ring.distal.close      = desiredGlove->ringTipRaw;
                 desiredGlove->ringRoot = 1;
                 desiredGlove->ringTip = 1;
             }
 
             if (state.uiState.targetFinger == CalibrationFinger_t::Finger_Pinky) {
-                state.uiState.currentCalibration.fingers.pinky.proximal.close   = desiredGlove->pinkyRootRaw;
+                state.uiState.currentCalibration.fingers.pinky.proximal.close   = desiredGlove->pinkyRoot1Raw;
                 state.uiState.currentCalibration.fingers.pinky.distal.close     = desiredGlove->pinkyTipRaw;
                 desiredGlove->pinkyRoot = 1;
                 desiredGlove->pinkyTip = 1;
@@ -974,7 +1125,7 @@ void DrawCalibrateFingersSingle(AppState& state) {
 
 
 void DrawCalibrateOffsets(AppState& state) {
-
+#ifdef WIN32
     ImGui::BeginGroupPanel("Pose Offset Calibration");
     {
         protocol::ContactGloveState_t* desiredGlove = nullptr;
@@ -1042,7 +1193,7 @@ void DrawCalibrateOffsets(AppState& state) {
             ImGui::Text("Press any button to continue...");
 
             if (ImGui::Button("Continue") || anyButtonPressedJoystick) {
-
+                #ifdef WIN32
                 // Request a driver pose from the server
                 protocol::Request_t req = protocol::Request_t(desiredGlove->trackerIndex);
                 protocol::Response_t response = state.ipcClient->SendBlocking(req);
@@ -1075,6 +1226,7 @@ void DrawCalibrateOffsets(AppState& state) {
                     state.uiState.calibrationState = CalibrationState_t::State_Entering;
                     state.uiState.page = ScreenState_t::ScreenStateViewData;
                 }
+                #endif
             }
 
             break;
@@ -1097,6 +1249,11 @@ void DrawCalibrateOffsets(AppState& state) {
         }
     }
     ImGui::EndGroupPanel();
+#else
+    state.uiState.calibrationState = CalibrationState_t::State_Entering;
+    state.uiState.page = ScreenState_t::ScreenStateViewData;
+#endif
+
 }
 
 void DrawUi(const bool isOverlay, AppState& state) {

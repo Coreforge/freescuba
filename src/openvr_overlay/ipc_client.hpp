@@ -14,15 +14,21 @@ public:
 	~IPCClient();
 
 	void Connect();
-	protocol::Response_t SendBlocking(const protocol::Request_t& request) const;
+	protocol::Response_t SendBlocking(const protocol::Request_t& request);
 
-	void Send(const protocol::Request_t& request) const;
-	protocol::Response_t Receive() const;
+	void Send(const protocol::Request_t& request);
+	protocol::Response_t Receive();
+	#ifndef WIN32
+	void Poll();
+	bool IsConnected();
+	#endif
 
 private:
 	#ifdef WIN32
 	HANDLE pipe = INVALID_HANDLE_VALUE;
 	#else
+	int socketFd = -1;
+	int connectionSocketFd = -1;
 	FILE* pipe = nullptr; 
 	#endif
 };

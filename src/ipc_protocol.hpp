@@ -78,7 +78,7 @@ namespace vr {
 	};
 }
 #endif
-
+#pragma pack(push,1)
 namespace protocol {
 	const uint32_t Version = 1;
 
@@ -120,7 +120,7 @@ namespace protocol {
 		bool useCurl = false;
 		uint32_t trackerIndex = CONTACT_GLOVE_INVALID_DEVICE_ID;
 
-		uint16_t thumbRootRaw;
+		/*uint16_t thumbRootRaw;
 		uint16_t thumbTipRaw;
 		uint16_t indexRootRaw;
 		uint16_t indexTipRaw;
@@ -129,9 +129,9 @@ namespace protocol {
 		uint16_t ringRootRaw;
 		uint16_t ringTipRaw;
 		uint16_t pinkyRootRaw;
-		uint16_t pinkyTipRaw;
+		uint16_t pinkyTipRaw;*/
 
-		/*uint16_t pinkyRoot1Raw;
+		uint16_t pinkyRoot1Raw;
 		uint16_t pinkyTipRaw;
 		uint16_t pinkyRoot2Raw;
 		uint16_t ringRoot1Raw;
@@ -143,20 +143,26 @@ namespace protocol {
 		uint16_t indexRoot1Raw;
 		uint16_t indexTipRaw;
 		uint16_t indexRoot2Raw;
-		uint16_t thumbBendRaw;
+		uint16_t thumbRoot1Raw;
 		uint16_t thumbTipRaw;
-		uint16_t thumbBend2Raw;
-		uint16_t thumbRootRaw;*/
+		uint16_t thumbRoot2Raw;
+		uint16_t thumbBaseRaw;
 
+		float thumbBase;
 		float thumbRoot;
+		float thumbSplay;
 		float thumbTip;
 		float indexRoot;
+		float indexSplay;
 		float indexTip;
 		float middleRoot;
+		float middleSplay;
 		float middleTip;
 		float ringRoot;
+		float ringSplay;
 		float ringTip;
 		float pinkyRoot;
+		float pinkySplay;
 		float pinkyTip;
 
 		bool hasMagnetra;
@@ -188,10 +194,12 @@ namespace protocol {
 			uint16_t rest;	// Rest pose
 			uint16_t bend;	// Bend pose (fingers bent away from the palm, backwards)
 			uint16_t close; // Close pose (fingers bent towards the palm)
+			uint16_t splayed;	// fingers flat, but splayed apart
 		};
 
 		struct FingerCalibrationData_t {
 			FingerJointCalibrationData_t proximal;
+			FingerJointCalibrationData_t proximal2;
 			FingerJointCalibrationData_t distal;
 		};
 
@@ -209,6 +217,7 @@ namespace protocol {
 			FingerJointCalibrationData_t pinkyRoot;
 			FingerJointCalibrationData_t pinkyTip;
 			*/
+			FingerJointCalibrationData_t thumbBase;
 			FingerCalibrationData_t thumb;
 			FingerCalibrationData_t index;
 			FingerCalibrationData_t middle;
@@ -235,8 +244,8 @@ namespace protocol {
 			} trigger;
 
 			struct PoseOffset_t {
-				vr::HmdVector3d_t pos;
-				vr::HmdQuaternion_t rot;
+				float pos[3];
+				float rot[4];
 			} poseOffset;
 
 			HandFingersCalibrationData_t fingers;
@@ -251,6 +260,22 @@ namespace protocol {
 				GestureThreshold_t trigger;
 				GestureThreshold_t grip;
 			} gestures;
+
+			struct SplayFingerCalibration_t{
+				float scale;
+				float offset;
+			};
+			struct SplayCalibration_t{
+				SplayFingerCalibration_t thumb;
+				SplayFingerCalibration_t index;
+				SplayFingerCalibration_t middle;
+				SplayFingerCalibration_t ring;
+				SplayFingerCalibration_t pinky;
+			} splay;
+
+			float grip_offset[3];
+			float grip_rotation[3];
+			bool use_custom_grip;
 			
 		} calibration;
 	};
@@ -284,3 +309,4 @@ namespace protocol {
 		Response_t(vr::DriverPose_t pose)						: type(ResponseType_t::ResponseDevicePose), driverPose(pose){ }
 	};
 }
+#pragma pack(pop)

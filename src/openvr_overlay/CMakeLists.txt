@@ -97,6 +97,9 @@ target_compile_definitions(FreeScubaOverlay
 	PRIVATE NOMINMAX
 )
 
+find_package(Ceres REQUIRED)
+target_link_libraries(FreeScubaOverlay PRIVATE Ceres::ceres)
+
 # Copy vrmanifest
 add_custom_command(
   TARGET FreeScubaOverlay POST_BUILD

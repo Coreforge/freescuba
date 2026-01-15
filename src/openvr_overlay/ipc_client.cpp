@@ -1,4 +1,9 @@
 #include "ipc_client.hpp"
+#include <bits/types/struct_iovec.h>
+#include <cerrno>
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <filesystem>
@@ -7,6 +12,9 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 #endif
 
 #ifdef WIN32
@@ -49,8 +57,35 @@ std::string getPipePath(){
 	char* xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
 	std::filesystem::path path = (xdg_runtime_dir == nullptr) ? std::filesystem::path("/tmp") : std::filesystem::path(xdg_runtime_dir);
 
-	path /= "freescuba_pipe";
+	path /= "freescuba_socket";
 	return path.string();
+}
+
+void IPCClient::Poll(){
+	int acceptFd = accept4(socketFd, nullptr, 0, SOCK_NONBLOCK);
+	if(acceptFd == -1){
+		// since non-blocking IO is used, this will happen quite often
+		if(!(errno == EAGAIN || errno == EWOULDBLOCK)){
+			fprintf(stderr, "IPC socket accept failed: %d %s\n", errno, strerror(errno));
+			return;
+		}
+	} else {
+		if(connectionSocketFd == -1){
+			connectionSocketFd = acceptFd;
+		} else {
+			if(close(acceptFd) == -1){
+				fprintf(stderr, "IPC socket close of additional connection failed: %d %s\n", errno, strerror(errno));
+				return;
+			}
+		}
+	}
+}
+
+bool IPCClient::IsConnected(){
+	if(connectionSocketFd != -1){
+		return true;
+	}
+	return false;
 }
 #endif
 
@@ -97,17 +132,47 @@ void IPCClient::Connect()
 	#else
 	while(true){
 		std::string path = getPipePath();
+		// Note: I'm switching around the client-server roles here, as I think it makes more sense this way
 		#warning "Probably don't actually create the pipe here"
-		return;
-		if(mkfifo(path.c_str(), 0660) == -1){
-			throw std::runtime_error(std::string("Could not create named pipe: errno ") + std::to_string(errno));
+		if((socketFd = socket(AF_UNIX, SOCK_SEQPACKET, 0)) == -1){
+			throw std::runtime_error(std::string("Could not create socket: errno ") + std::to_string(errno));
 		}
-		pipe = fopen(path.c_str(), "r+");
-		if(pipe == nullptr){
-			throw std::runtime_error(std::string("Could not open named pipe: errno ") + std::to_string(errno));
+		if(fcntl(socketFd, F_SETFL, O_NONBLOCK) == -1){
+			throw std::runtime_error(std::string("Failed to set socket to non-blocking: errno ") + std::to_string(errno));
+		}
+		sockaddr_un addr;
+		addr.sun_family = AF_UNIX;
+		std::memset(addr.sun_path, 0, sizeof(addr.sun_path));
+		std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+		// loop used for easy bind retry
+		int retryBind = 0;
+		while(retryBind < 2){
+			if(bind(socketFd, (sockaddr*)&addr, sizeof(addr)) == -1){
+				if(errno == EADDRINUSE){
+					// this may or may not work, but if the socket is still hanging around from an earlier launch, just connect to it
+					if(connect(socketFd, (sockaddr*)&addr, sizeof(addr)) == -1){
+						// if this errors with ECONNREFUSED, it's a dangling socket that can be removed
+						if(errno == ECONNREFUSED){
+							if(unlink(path.c_str())){
+								throw std::runtime_error(std::string("Could not unlink old socket: errno ") + std::to_string(errno));			
+							}
+							retryBind++;
+							continue;
+						}
+						throw std::runtime_error(std::string("Could not connect to socket (after binding failed): errno ") + std::to_string(errno));
+					}
+				} else {
+					throw std::runtime_error(std::string("Could not bind socket: errno ") + std::to_string(errno));
+				}
+			}
+			break;
+		}
+		if(listen(socketFd, 1) == -1){
+			throw std::runtime_error(std::string("Could not listen on socket: errno ") + std::to_string(errno));
 		}
 		break;
 	}
+	return;
 	#endif
 
 	const protocol::Response_t response = SendBlocking( protocol::Request_t( protocol::RequestHandshake ) );
@@ -123,13 +188,13 @@ void IPCClient::Connect()
 	}
 }
 
-protocol::Response_t IPCClient::SendBlocking( const protocol::Request_t& request ) const
+protocol::Response_t IPCClient::SendBlocking( const protocol::Request_t& request )
 {
 	Send( request );
 	return Receive();
 }
 
-void IPCClient::Send( const protocol::Request_t& request ) const
+void IPCClient::Send( const protocol::Request_t& request )
 {
 	#ifdef WIN32
 	DWORD bytesWritten;
@@ -140,17 +205,31 @@ void IPCClient::Send( const protocol::Request_t& request ) const
 		throw std::runtime_error( "Error writing IPC request. Error " + std::to_string( lastError ) + ": " + LastErrorString( lastError ) );
 	}
 	#else
-	#warning IPC stubbed!
-	return;
-	size_t ret = fwrite(&request, sizeof(request), 1, pipe);
-	if(ret != 1){
-		int err = ferror(pipe);
-		throw std::runtime_error("Error writing IPC request. Error " + std::to_string(err));
+
+	msghdr hdr;
+	hdr.msg_name = nullptr;
+	hdr.msg_namelen = 0;
+	iovec iov;
+	// cast discards const, but no data should be written
+	iov.iov_base = (void*)&request;
+	iov.iov_len = sizeof(request);
+
+	hdr.msg_iov = &iov;
+	hdr.msg_iovlen = 1;
+	hdr.msg_control = nullptr;
+	hdr.msg_controllen = 0;
+	hdr.msg_flags = 0;
+
+	size_t ret = sendmsg(connectionSocketFd, &hdr, 0);
+	if(ret == -1){
+		fprintf(stderr, "Failed to write to IPC socket: %d %s\n", errno, strerror(errno));
+		close(connectionSocketFd);
+		connectionSocketFd = -1;
 	}
 	#endif
 }
 
-protocol::Response_t IPCClient::Receive() const
+protocol::Response_t IPCClient::Receive()
 {
 	protocol::Response_t response(protocol::ResponseInvalid);
 	#ifdef WIN32
@@ -168,12 +247,29 @@ protocol::Response_t IPCClient::Receive() const
 		throw std::runtime_error( "Invalid IPC response with size " + std::to_string( bytesRead ) );
 	}
 	#else
-	#warning IPC stubbed!
-	return response;
-	size_t ret = fread(&response, sizeof(response), 1, pipe);
-	if(ret != 1){
-		int err = ferror(pipe);
-		throw std::runtime_error("Error reading IPC response. Error " + std::to_string(err));
+
+	iovec iov;
+	iov.iov_base = &response;
+	iov.iov_len = sizeof(response);
+	msghdr hdr;
+	hdr.msg_name = nullptr;
+	hdr.msg_namelen = 0;
+	hdr.msg_iov = &iov;
+	hdr.msg_iovlen = 1;
+
+	size_t ret = recvmsg(connectionSocketFd, &hdr, 0);
+	if(ret == -1){
+		if(errno != EAGAIN && errno != EWOULDBLOCK){
+			fprintf(stderr, "Failed to read from IPC socket: %d %s\n", errno, strerror(errno));
+			close(connectionSocketFd);
+			connectionSocketFd = -1;
+		}
+	} else if(ret == 0 || ret == sizeof(response)){
+		// nothing or probably a correct packet, response will be returned
+	} else {
+		// something with a weird size was received, protocol error
+		fprintf(stderr, "Received IPC packet with unexpected length %ld\n", ret);
+		response = protocol::Response_t(protocol::ResponseInvalid);
 	}
 	#endif
 

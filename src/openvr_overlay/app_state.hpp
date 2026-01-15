@@ -5,6 +5,8 @@
 #include "ring_buffer.hpp"
 #include <openvr.h>
 
+#include "glove_model.hpp"
+
 // #define BATTERY_WINDOW_SIZE 128
 constexpr uint8_t BATTERY_WINDOW_SIZE = 128;
 
@@ -32,6 +34,7 @@ enum class CalibrationState_t {
     // Stages for finger tracking calibration
     Fingers_DiscoverNeutral = 1,
     Fingers_DiscoverClosed,
+    Fingers_DiscoverSplayed,
     Fingers_DiscoverBackwardsBend,
     Fingers_FocusOnFinger,
 
@@ -61,6 +64,9 @@ public:
     protocol::ContactGloveState_t gloveLeft;
     protocol::ContactGloveState_t gloveRight;
     bool dongleAvailable;
+
+    GloveModelSolver solverLeft;
+    GloveModelSolver solverRight;
 
     IPCClient* ipcClient;
 

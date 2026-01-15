@@ -1,3 +1,4 @@
+#include "glove_model.hpp"
 #include "overlay_app.hpp"
 #include "contact_glove/serial_communication.hpp"
 #include "ipc_client.hpp"
@@ -7,7 +8,7 @@
 #include <algorithm>
 
 void ForwardDataToDriver(AppState& state, IPCClient& ipcClient);
-void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::high_resolution_clock::time_point gloveConnected);
+void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::high_resolution_clock::time_point gloveConnected, GloveModelSolver& solver);
 void UpdateGloveInputState(AppState& state);
 
 // Tell the GPU drivers to give the overlay priority over other apps, it's a driver after all
@@ -161,6 +162,10 @@ int main() {
 
         LoadConfiguration(state);
 
+        // try ceres stuff
+        state.solverLeft.calibrate(state.gloveLeft.calibration.fingers);
+        state.solverRight.calibrate(state.gloveRight.calibration.fingers);
+
         // Glove timing
         static std::chrono::high_resolution_clock::time_point gloveLeftConnected  = std::chrono::high_resolution_clock::time_point::min();
         static std::chrono::high_resolution_clock::time_point gloveRightConnected = std::chrono::high_resolution_clock::time_point::min();
@@ -213,30 +218,42 @@ int main() {
                     case ContactGloveDevice_t::LeftGlove:
                         gloveLeftConnected = std::chrono::high_resolution_clock::now();
                         state.gloveLeft.isConnected         = true;
-                        state.gloveLeft.thumbRootRaw        = fingerData.fingerThumbRoot;
+                        state.gloveLeft.thumbBaseRaw        = fingerData.fingerThumbBase;
+                        state.gloveLeft.thumbRoot1Raw        = fingerData.fingerThumbRoot1;
+                        state.gloveLeft.thumbRoot2Raw        = fingerData.fingerThumbRoot2;
                         state.gloveLeft.thumbTipRaw         = fingerData.fingerThumbTip;
-                        state.gloveLeft.indexRootRaw        = fingerData.fingerIndexRoot1;
+                        state.gloveLeft.indexRoot1Raw        = fingerData.fingerIndexRoot1;
+                        state.gloveLeft.indexRoot2Raw        = fingerData.fingerIndexRoot2;
                         state.gloveLeft.indexTipRaw         = fingerData.fingerIndexTip;
-                        state.gloveLeft.middleRootRaw       = fingerData.fingerMiddleRoot1;
+                        state.gloveLeft.middleRoot1Raw       = fingerData.fingerMiddleRoot1;
+                        state.gloveLeft.middleRoot2Raw       = fingerData.fingerMiddleRoot2;
                         state.gloveLeft.middleTipRaw        = fingerData.fingerMiddleTip;
-                        state.gloveLeft.ringRootRaw         = fingerData.fingerRingRoot1;
+                        state.gloveLeft.ringRoot1Raw         = fingerData.fingerRingRoot1;
+                        state.gloveLeft.ringRoot2Raw         = fingerData.fingerRingRoot2;
                         state.gloveLeft.ringTipRaw          = fingerData.fingerRingTip;
-                        state.gloveLeft.pinkyRootRaw        = fingerData.fingerPinkyRoot1;
+                        state.gloveLeft.pinkyRoot1Raw        = fingerData.fingerPinkyRoot1;
+                        state.gloveLeft.pinkyRoot2Raw        = fingerData.fingerPinkyRoot2;
                         state.gloveLeft.pinkyTipRaw         = fingerData.fingerPinkyTip;
                         break;
                     case ContactGloveDevice_t::RightGlove:
                         gloveRightConnected = std::chrono::high_resolution_clock::now();
                         state.gloveRight.isConnected        = true;
-                        state.gloveRight.thumbRootRaw       = fingerData.fingerThumbRoot;
-                        state.gloveRight.thumbTipRaw        = fingerData.fingerThumbTip;
-                        state.gloveRight.indexRootRaw       = fingerData.fingerIndexRoot1;
-                        state.gloveRight.indexTipRaw        = fingerData.fingerIndexTip;
-                        state.gloveRight.middleRootRaw      = fingerData.fingerMiddleRoot1;
-                        state.gloveRight.middleTipRaw       = fingerData.fingerMiddleTip;
-                        state.gloveRight.ringRootRaw        = fingerData.fingerRingRoot1;
-                        state.gloveRight.ringTipRaw         = fingerData.fingerRingTip;
-                        state.gloveRight.pinkyRootRaw       = fingerData.fingerPinkyRoot1;
-                        state.gloveRight.pinkyTipRaw        = fingerData.fingerPinkyTip;
+                        state.gloveRight.thumbBaseRaw        = fingerData.fingerThumbBase;
+                        state.gloveRight.thumbRoot1Raw        = fingerData.fingerThumbRoot1;
+                        state.gloveRight.thumbRoot2Raw        = fingerData.fingerThumbRoot2;
+                        state.gloveRight.thumbTipRaw         = fingerData.fingerThumbTip;
+                        state.gloveRight.indexRoot1Raw        = fingerData.fingerIndexRoot1;
+                        state.gloveRight.indexRoot2Raw        = fingerData.fingerIndexRoot2;
+                        state.gloveRight.indexTipRaw         = fingerData.fingerIndexTip;
+                        state.gloveRight.middleRoot1Raw       = fingerData.fingerMiddleRoot1;
+                        state.gloveRight.middleRoot2Raw       = fingerData.fingerMiddleRoot2;
+                        state.gloveRight.middleTipRaw        = fingerData.fingerMiddleTip;
+                        state.gloveRight.ringRoot1Raw         = fingerData.fingerRingRoot1;
+                        state.gloveRight.ringRoot2Raw         = fingerData.fingerRingRoot2;
+                        state.gloveRight.ringTipRaw          = fingerData.fingerRingTip;
+                        state.gloveRight.pinkyRoot1Raw        = fingerData.fingerPinkyRoot1;
+                        state.gloveRight.pinkyRoot2Raw        = fingerData.fingerPinkyRoot2;
+                        state.gloveRight.pinkyTipRaw         = fingerData.fingerPinkyTip;
                         break;
                 }
             },
@@ -268,8 +285,8 @@ int main() {
                 TryCreateVrOverlay(state);
 
                 state.dongleAvailable = man.IsConnected();
-                ProcessGlove(state.gloveLeft, state.uiState.leftGloveBatteryBuffer, gloveLeftConnected);
-                ProcessGlove(state.gloveRight, state.uiState.rightGloveBatteryBuffer, gloveRightConnected);
+                ProcessGlove(state.gloveLeft, state.uiState.leftGloveBatteryBuffer, gloveLeftConnected, state.solverLeft);
+                ProcessGlove(state.gloveRight, state.uiState.rightGloveBatteryBuffer, gloveRightConnected, state.solverRight);
                 UpdateGloveInputState(state);
 
                 doExecute = FreeScuba::Overlay::UpdateNativeWindow(state, s_overlayMainHandle);
@@ -301,7 +318,7 @@ int main() {
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define CLAMP(t,a,b) (MAX(MIN(t, b), a))
 
-void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::high_resolution_clock::time_point gloveConnected) {
+void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::high_resolution_clock::time_point gloveConnected, GloveModelSolver& solver) {
 
     // Compute whether we should consider the glove as connected or not
     auto delta = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - gloveConnected);
@@ -378,21 +395,42 @@ void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuf
 
         // Helper macro because 80% of the code is copy paste par joint names
         // Remaps such that rest is 0.0, and close is +1.0, and prevents values > 1.0 being output
+#define GET_FINGER_CALIBRATED(value, structNesting) \
+        Clamp(((value) - glove.calibration.fingers.structNesting.rest) / (float) (glove.calibration.fingers.structNesting.close - glove.calibration.fingers.structNesting.rest), -1.0f, 1.0f)
 #define APPLY_FINGER_CALIBRATION(joint, structNesting) \
         glove.joint = Clamp((glove.joint##Raw - glove.calibration.fingers.structNesting.rest) / (float) (glove.calibration.fingers.structNesting.close - glove.calibration.fingers.structNesting.rest), -1.0f, 1.0f)
+        // the two sensors per base make this more annoying (needs to be done more properly anyways)
+#define APPLY_FINGER_BASE_CALIBRATION(joint, structNesting) \
+        glove.joint = (GET_FINGER_CALIBRATED(glove.joint##1Raw, structNesting) + GET_FINGER_CALIBRATED(glove.joint##2Raw, structNesting##2)) / 2.f
+        //glove.joint = Clamp((glove.joint##1Raw - glove.calibration.fingers.structNesting.rest) / (float) (glove.calibration.fingers.structNesting.close - glove.calibration.fingers.structNesting.rest), -1.0f, 1.0f)
 
-        APPLY_FINGER_CALIBRATION(thumbRoot,     thumb.proximal);
+#define APPLY_FINGER_CALIBRATION_SPLAY(finger) \
+        glove.finger##Splay = ( ((((float)glove.finger##Root1Raw / glove.finger##Root2Raw) - ((float)glove.calibration.fingers.finger.proximal.rest / glove.calibration.fingers.finger.proximal2.rest)) / \
+        (((float)glove.calibration.fingers.finger.proximal.splayed / glove.calibration.fingers.finger.proximal2.splayed) - ((float)glove.calibration.fingers.finger.proximal.rest / glove.calibration.fingers.finger.proximal2.rest))) \
+         * glove.calibration.splay.finger.scale + glove.calibration.splay.finger.offset)
+        //glove.finger##Splay = ( (GET_FINGER_CALIBRATED(glove.finger##Root1Raw, finger.proximal) / GET_FINGER_CALIBRATED(glove.finger##Root2Raw, finger.proximal2)) - 1.f)
+
+        APPLY_FINGER_BASE_CALIBRATION(thumbRoot,     thumb.proximal);
+        APPLY_FINGER_CALIBRATION_SPLAY(thumb);
         APPLY_FINGER_CALIBRATION(thumbTip,      thumb.distal);
-        APPLY_FINGER_CALIBRATION(indexRoot,     index.proximal);
+        APPLY_FINGER_CALIBRATION(thumbBase,      thumbBase);
+        APPLY_FINGER_BASE_CALIBRATION(indexRoot,     index.proximal);
+        APPLY_FINGER_CALIBRATION_SPLAY(index);
+        glove.indexSplay *= -1.f;
         APPLY_FINGER_CALIBRATION(indexTip,      index.distal);
-        APPLY_FINGER_CALIBRATION(middleRoot,    middle.proximal);
+        APPLY_FINGER_BASE_CALIBRATION(middleRoot,    middle.proximal);
+        APPLY_FINGER_CALIBRATION_SPLAY(middle);
         APPLY_FINGER_CALIBRATION(middleTip,     middle.distal);
-        APPLY_FINGER_CALIBRATION(ringRoot,      ring.proximal);
+        APPLY_FINGER_BASE_CALIBRATION(ringRoot,      ring.proximal);
+        APPLY_FINGER_CALIBRATION_SPLAY(ring);
         APPLY_FINGER_CALIBRATION(ringTip,       ring.distal);
-        APPLY_FINGER_CALIBRATION(pinkyRoot,     pinky.proximal);
+        APPLY_FINGER_BASE_CALIBRATION(pinkyRoot,     pinky.proximal);
+        APPLY_FINGER_CALIBRATION_SPLAY(pinky);
         APPLY_FINGER_CALIBRATION(pinkyTip,      pinky.distal);
 
 #undef APPLY_FINGER_CALIBRATION
+
+    solver.apply(glove);
 
     } else {
         glove.gloveBattery = CONTACT_GLOVE_INVALID_BATTERY;
@@ -449,10 +487,9 @@ void UpdateGloveInputState(AppState& state) {
 static char deviceRole[vr::k_unMaxPropertyStringSize];
 
 void ForwardDataToDriver(AppState& state, IPCClient& ipcClient) {
-    #warning STUBBED
-    return;
-    protocol::Request_t req = {};
 
+    protocol::Request_t req = {};
+    #ifdef WIN32
     uint32_t trackerIdLeft  = CONTACT_GLOVE_INVALID_DEVICE_ID;
     uint32_t trackerIdRight = CONTACT_GLOVE_INVALID_DEVICE_ID;
 
@@ -500,9 +537,12 @@ void ForwardDataToDriver(AppState& state, IPCClient& ipcClient) {
             }
         }
     }
-
+    #else
+    ipcClient.Poll();
+    if(ipcClient.IsConnected()){
+    #endif
     if (state.gloveLeft.isConnected == true) {
-        state.gloveLeft.trackerIndex = trackerIdLeft;
+        //state.gloveLeft.trackerIndex = trackerIdLeft;
         req.type = protocol::RequestType_t::RequestUpdateGloveLeftState;
         memcpy(&req.gloveData, &state.gloveLeft, sizeof(protocol::ContactGloveState_t));
         // Adjust angle
@@ -514,7 +554,7 @@ void ForwardDataToDriver(AppState& state, IPCClient& ipcClient) {
     }
 
     if (state.gloveRight.isConnected == true) {
-        state.gloveRight.trackerIndex = trackerIdRight;
+        //state.gloveRight.trackerIndex = trackerIdRight;
         req.type = protocol::RequestType_t::RequestUpdateGloveRightState;
         memcpy(&req.gloveData, &state.gloveRight, sizeof(protocol::ContactGloveState_t));
         // Adjust angle
@@ -524,4 +564,7 @@ void ForwardDataToDriver(AppState& state, IPCClient& ipcClient) {
         req.gloveData.isConnected = false;
         ipcClient.SendBlocking(req);
     }
+    #ifndef WIN32
+    }
+    #endif
 }

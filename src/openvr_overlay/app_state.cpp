@@ -43,24 +43,24 @@ AppState::AppState() {
     gloveLeft.calibration.fingers.pinky.distal.close    = 0xFFFF;
 
     // Default pose calibration for left glove
-    gloveLeft.calibration.poseOffset.pos.v[0]           =  0.022108916431138825;
-    gloveLeft.calibration.poseOffset.pos.v[1]           = -0.10298597531413284;
-    gloveLeft.calibration.poseOffset.pos.v[2]           = -0.043071794351218051;
+    gloveLeft.calibration.poseOffset.pos[0]           =  0.022108916431138825;
+    gloveLeft.calibration.poseOffset.pos[1]           = -0.10298597531413284;
+    gloveLeft.calibration.poseOffset.pos[2]           = -0.043071794351218051;
 
-    gloveLeft.calibration.poseOffset.rot.w              =  0.79839363620734938;
-    gloveLeft.calibration.poseOffset.rot.x              =  0.56994138349383228;
-    gloveLeft.calibration.poseOffset.rot.y              = -0.0095891559420182571;
-    gloveLeft.calibration.poseOffset.rot.z              =  0.1940166723069508;
+    gloveLeft.calibration.poseOffset.rot[0]              =  0.79839363620734938;
+    gloveLeft.calibration.poseOffset.rot[1]              =  0.56994138349383228;
+    gloveLeft.calibration.poseOffset.rot[2]              = -0.0095891559420182571;
+    gloveLeft.calibration.poseOffset.rot[3]              =  0.1940166723069508;
 
     // Default pose calibration for right glove
-    gloveRight.calibration.poseOffset.pos.v[0]          =  0.014676248807481751;
-    gloveRight.calibration.poseOffset.pos.v[1]          =  0.12989163327871586;
-    gloveRight.calibration.poseOffset.pos.v[2]          = -0.07395779910121722;
+    gloveRight.calibration.poseOffset.pos[0]          =  0.014676248807481751;
+    gloveRight.calibration.poseOffset.pos[1]          =  0.12989163327871586;
+    gloveRight.calibration.poseOffset.pos[2]          = -0.07395779910121722;
 
-    gloveRight.calibration.poseOffset.rot.w             =  0.74633244094972939;
-    gloveRight.calibration.poseOffset.rot.x             = -0.61839448536096064;
-    gloveRight.calibration.poseOffset.rot.y             =  0.15040583272822428;
-    gloveRight.calibration.poseOffset.rot.z             = -0.19481846304316558;
+    gloveRight.calibration.poseOffset.rot[0]             =  0.74633244094972939;
+    gloveRight.calibration.poseOffset.rot[1]             = -0.61839448536096064;
+    gloveRight.calibration.poseOffset.rot[2]             =  0.15040583272822428;
+    gloveRight.calibration.poseOffset.rot[3]             = -0.19481846304316558;
 
     // Default gesture values for left glove
     gloveLeft.calibration.gestures.grip.activate        = 0.508f;

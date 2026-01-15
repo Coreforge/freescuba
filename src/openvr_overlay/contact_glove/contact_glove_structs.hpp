@@ -51,7 +51,8 @@ constexpr uint8_t CONTACT_GLOVE_INPUT_MASK_BUTTON_DOWN		= 0b00000001;
 constexpr uint8_t CONTACT_GLOVE_INPUT_MASK_JOYSTICK_CLICK	= 0b00000100;
 constexpr uint8_t CONTACT_GLOVE_INPUT_MASK_MAGNETRA_PRESENT	= 0b00100000;
 
-constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP			= 0b00000001;	// on button 2, mask works
+constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_UP			= 0b11111110;	// on button 2, mask works
+constexpr uint8_t CONTACT_GLOVE_2_INPUT_VALUE_SYSTEM_UP			= 0b10001010;	// on button 2, mask works
 constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_SYSTEM_DOWN		= 0b00001000;
 constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_BUTTON_UP			= 0b00000010;
 constexpr uint8_t CONTACT_GLOVE_2_INPUT_MASK_BUTTON_DOWN		= 0b00000001;
@@ -128,10 +129,10 @@ struct GlovePacketFingers2_t{
 	uint16_t fingerIndexRoot1;
 	uint16_t fingerIndexTip;
 	uint16_t fingerIndexRoot2;
-	uint16_t fingerThumbBend;
+	uint16_t fingerThumbRoot1;
 	uint16_t fingerThumbTip;
-	uint16_t fingerThumbBend2;
-	uint16_t fingerThumbRoot;
+	uint16_t fingerThumbRoot2;
+	uint16_t fingerThumbBase;
 	uint16_t unknown2;
 };
 #pragma pack(pop)

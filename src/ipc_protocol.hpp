@@ -195,6 +195,10 @@ namespace protocol {
 			uint16_t bend;	// Bend pose (fingers bent away from the palm, backwards)
 			uint16_t close; // Close pose (fingers bent towards the palm)
 			uint16_t splayed;	// fingers flat, but splayed apart
+			uint16_t horns;
+			uint16_t peace;
+			uint16_t flipoff;
+			uint16_t point;
 		};
 
 		struct FingerCalibrationData_t {

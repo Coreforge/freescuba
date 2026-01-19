@@ -149,11 +149,17 @@ void ReadFingerJointCalibration(protocol::ContactGloveState_t::FingerJointCalibr
 		// state.rest		= (uint16_t) jsonObj["rest"].get<double>();
 		// state.bend		= (uint16_t) jsonObj["bend"].get<double>();
 		// state.close		= (uint16_t) jsonObj["close"].get<double>();
+		#define READ_STATE(jointstate) \
+		TryReadUint16(state.jointstate,	jsonObj, #jointstate);
 
-		TryReadUint16(state.rest,	jsonObj, "rest");
-		TryReadUint16(state.bend,	jsonObj, "bend");
-		TryReadUint16(state.close,	jsonObj, "close");
-		TryReadUint16(state.splayed,	jsonObj, "splayed");
+		READ_STATE(rest)
+		READ_STATE(bend)
+		READ_STATE(close)
+		READ_STATE(splayed)
+		READ_STATE(horns)
+		READ_STATE(peace)
+		READ_STATE(flipoff)
+		READ_STATE(point)
 	} catch (std::runtime_error) {}
 }
 
@@ -334,14 +340,19 @@ void WriteTriggerCalibration(protocol::ContactGloveState_t::CalibrationData_t::T
 }
 
 void WriteFingerJointCalibration(protocol::ContactGloveState_t::FingerJointCalibrationData_t& state, picojson::object& jsonObj) {
-	double buf = state.rest;
-	jsonObj["rest"].set<double>( buf );
-	buf = state.bend;
-	jsonObj["bend"].set<double>( buf );
-	buf = state.close;
-	jsonObj["close"].set<double>( buf );
-	buf = state.splayed;
-	jsonObj["splayed"].set<double>( buf );
+	double buf;
+	#define WRITE_STATE(jointstate) \
+	buf = state.jointstate; \
+	jsonObj[#jointstate].set<double>( buf );
+
+	WRITE_STATE(rest)
+	WRITE_STATE(bend)
+	WRITE_STATE(close)
+	WRITE_STATE(splayed)
+	WRITE_STATE(horns)
+	WRITE_STATE(peace)
+	WRITE_STATE(flipoff)
+	WRITE_STATE(point)
 }
 
 void WriteFingersCalibration(protocol::ContactGloveState_t::HandFingersCalibrationData_t& state, picojson::object& jsonObj) {

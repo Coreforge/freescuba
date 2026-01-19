@@ -9,6 +9,7 @@
 #include <iostream>
 #include <vector>
 
+#include "utils.h"
 
 // currently, it's assumed that the structs this uses and arrays ceres views them as are packed the same.
 // If this turns out to not be reliably the case, conversion between struct and array has to be done manually (which is cleaner, but more effort)
@@ -75,13 +76,6 @@ struct GloveCostFunctor{
     GloveModel<double>::ModelOutputComponents components;
 };
 
-#define FOREACH_FINGER(macro, args...) \
-    macro(index, args) \
-    macro(middle, args) \
-    macro(ring, args) \
-    macro(pinky, args) \
-    macro(thumb, args)
-
 void GloveModelSolver::calibrate(const protocol::ContactGloveState_t::HandFingersCalibrationData_t& calibrationData){
     ceres::Problem problem;
     std::vector<GloveModel<double>::GloveValues> inputs;
@@ -109,12 +103,18 @@ void GloveModelSolver::calibrate(const protocol::ContactGloveState_t::HandFinger
 
     #define PRINT_CALIB_FINGER_PARAM(finger, param) \
     std::cout << #finger" "#param" " << modelCalibration.finger.param.zeroPoint << " " << modelCalibration.finger.param.factor << std::endl;
+    #define PRINT_CALIB_FINGER_CORR(finger) \
+    std::cout << #finger " neighbour correction " << modelCalibration.finger.rootNeighbourCorrection1[0] << \
+        " " << modelCalibration.finger.rootNeighbourCorrection1[1] << \
+        " " << modelCalibration.finger.rootNeighbourCorrection2[0] << \
+        " " << modelCalibration.finger.rootNeighbourCorrection2[1] << std::endl;
 
     #define PRINT_CALIB_FINGER(finger, dummy) \
     PRINT_CALIB_FINGER_PARAM(finger, root1) \
     PRINT_CALIB_FINGER_PARAM(finger, root2) \
     PRINT_CALIB_FINGER_PARAM(finger, tip) \
     PRINT_CALIB_FINGER_PARAM(finger, splay) \
+    PRINT_CALIB_FINGER_CORR(finger)
 
     FOREACH_FINGER(PRINT_CALIB_FINGER)
 }
@@ -181,6 +181,10 @@ size_t GloveModelSolver::convertCalibrationData(const protocol::ContactGloveStat
     GLOVE_STATE_FIELDS(rest)
     GLOVE_STATE_FIELDS(close)
     GLOVE_STATE_FIELDS(splayed)
+    GLOVE_STATE_FIELDS(horns)
+    GLOVE_STATE_FIELDS(peace)
+    GLOVE_STATE_FIELDS(flipoff)
+    GLOVE_STATE_FIELDS(point)
 
     FOREACH_FINGER(INPUT_FINGER_STATE, rest)
     FOREACH_FINGER(OUTPUT_FINGER, rest, root, 0)
@@ -206,10 +210,64 @@ size_t GloveModelSolver::convertCalibrationData(const protocol::ContactGloveStat
     FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, splayed, tip, false)
     FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, splayed, splay, true)
 
+    FOREACH_FINGER(INPUT_FINGER_STATE, horns)
+    FOREACH_FINGER(OUTPUT_FINGER, horns, root, 1)
+    FOREACH_FINGER(OUTPUT_FINGER, horns, tip, 1)
+    OUTPUT_FINGER(thumb, horns, tip, 0)
+    OUTPUT_FINGER(index, horns, root, 0)
+    OUTPUT_FINGER(index, horns, tip, 0)
+    OUTPUT_FINGER(pinky, horns, root, 0)
+    OUTPUT_FINGER(pinky, horns, tip, 0)
+    FOREACH_FINGER(OUTPUT_FINGER, horns, splay, 0)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, horns, root, true)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, horns, tip, false)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, horns, splay, true)
+
+    FOREACH_FINGER(INPUT_FINGER_STATE, peace)
+    FOREACH_FINGER(OUTPUT_FINGER, peace, root, 1)
+    FOREACH_FINGER(OUTPUT_FINGER, peace, tip, 1)
+    OUTPUT_FINGER(thumb, peace, tip, 0)
+    OUTPUT_FINGER(index, peace, root, 0)
+    OUTPUT_FINGER(index, peace, tip, 0)
+    OUTPUT_FINGER(middle, peace, root, 0)
+    OUTPUT_FINGER(middle, peace, tip, 0)
+    FOREACH_FINGER(OUTPUT_FINGER, peace, splay, 0)
+    OUTPUT_FINGER(index, peace, splay, 1)
+    OUTPUT_FINGER(middle, peace, splay, -1)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, peace, root, true)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, peace, tip, false)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, peace, splay, true)
+
+    FOREACH_FINGER(INPUT_FINGER_STATE, flipoff)
+    FOREACH_FINGER(OUTPUT_FINGER, flipoff, root, 1)
+    FOREACH_FINGER(OUTPUT_FINGER, flipoff, tip, 1)
+    OUTPUT_FINGER(thumb, flipoff, tip, 0)
+    OUTPUT_FINGER(middle, flipoff, root, 0)
+    OUTPUT_FINGER(middle, flipoff, tip, 0)
+    FOREACH_FINGER(OUTPUT_FINGER, flipoff, splay, 0)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, flipoff, root, true)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, flipoff, tip, false)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, flipoff, splay, true)
+
+    FOREACH_FINGER(INPUT_FINGER_STATE, point)
+    FOREACH_FINGER(OUTPUT_FINGER, point, root, 1)
+    FOREACH_FINGER(OUTPUT_FINGER, point, tip, 1)
+    OUTPUT_FINGER(thumb, horns, tip, 0)
+    OUTPUT_FINGER(index, horns, root, 0)
+    OUTPUT_FINGER(index, horns, tip, 0)
+    FOREACH_FINGER(OUTPUT_FINGER, point, splay, 0)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, point, root, true)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, point, tip, false)
+    FOREACH_FINGER(OUTPUT_FINGER_COMPONENT, point, splay, true)
+
     // add hand states to vectors
     GLOVE_APPEND_STATE_FIELDS(rest)
     GLOVE_APPEND_STATE_FIELDS(close)
     GLOVE_APPEND_STATE_FIELDS(splayed)
+    GLOVE_APPEND_STATE_FIELDS(horns)
+    GLOVE_APPEND_STATE_FIELDS(peace)
+    GLOVE_APPEND_STATE_FIELDS(flipoff)
+    GLOVE_APPEND_STATE_FIELDS(point)
 
     return numPoses;
 }

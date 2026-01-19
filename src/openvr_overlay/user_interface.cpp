@@ -8,6 +8,7 @@
 #include <cmath>
 
 #include "maths.hpp"
+#include "utils.h"
 
 // DrawJoystickInput :: Imgui commands to draw a nice joystick control to show what the current joystick value is
 // DrawGlove :: Displays a single Glove's state. Contains the buttons for trigger state change.
@@ -766,6 +767,11 @@ void DrawCalibrateFingers(AppState& state) {
             state.uiState.gloveButtons.releasedLeft.buttonUp || state.uiState.gloveButtons.releasedLeft.buttonDown || state.uiState.gloveButtons.releasedLeft.systemUp || state.uiState.gloveButtons.releasedLeft.systemDown || state.uiState.gloveButtons.releasedLeft.joystickClick ||
             state.uiState.gloveButtons.releasedRight.buttonUp || state.uiState.gloveButtons.releasedRight.buttonDown || state.uiState.gloveButtons.releasedRight.systemUp || state.uiState.gloveButtons.releasedRight.systemDown || state.uiState.gloveButtons.releasedRight.joystickClick;
 
+        #define COPY_FINGER_STATE(finger, jointstate) \
+        state.uiState.currentCalibration.fingers.finger.proximal.jointstate = desiredGlove->finger##Root1Raw; \
+        state.uiState.currentCalibration.fingers.finger.proximal2.jointstate = desiredGlove->finger##Root2Raw; \
+        state.uiState.currentCalibration.fingers.finger.distal.jointstate = desiredGlove->finger##TipRaw;
+
         // Calibration code
         switch (state.uiState.calibrationState) {
             case CalibrationState_t::Fingers_DiscoverNeutral:
@@ -859,9 +865,109 @@ void DrawCalibrateFingers(AppState& state) {
 
                 if (ImGui::Button("Continue") || anyButtonPressedJoystick) {
                     // Move to the next state
-                    state.uiState.calibrationState = CalibrationState_t::Fingers_DiscoverSplayed;
+                    state.uiState.calibrationState = CalibrationState_t::Fingers_DiscoverHorns;
                 }
 
+                break;
+            }
+            case CalibrationState_t::Fingers_DiscoverHorns:{
+                ImGui::Text("horns");
+                FOREACH_FINGER(COPY_FINGER_STATE, horns)
+                state.uiState.currentCalibration.fingers.thumbBase.horns = desiredGlove->thumbBaseRaw;
+
+                desiredGlove->thumbRoot     = 1;
+                desiredGlove->thumbTip      = 0;
+                desiredGlove->indexRoot     = 0;
+                desiredGlove->indexTip      = 0;
+                desiredGlove->middleRoot    = 1;
+                desiredGlove->middleTip     = 1;
+                desiredGlove->ringRoot      = 1;
+                desiredGlove->ringTip       = 1;
+                desiredGlove->pinkyRoot     = 0;
+                desiredGlove->pinkyTip      = 0;
+
+                // Proceed on any input
+                ImGui::Text("Press any button to continue...");
+
+                if (ImGui::Button("Continue") || anyButtonPressedJoystick) {
+                    // Move to the next state
+                    state.uiState.calibrationState = CalibrationState_t::Fingers_DiscoverPeace;
+                }
+                break;
+            }
+            case CalibrationState_t::Fingers_DiscoverPeace:{
+                ImGui::Text("peace");
+                FOREACH_FINGER(COPY_FINGER_STATE, peace)
+                state.uiState.currentCalibration.fingers.thumbBase.peace = desiredGlove->thumbBaseRaw;
+
+                desiredGlove->thumbRoot     = 1;
+                desiredGlove->thumbTip      = 0;
+                desiredGlove->indexRoot     = 0;
+                desiredGlove->indexTip      = 0;
+                desiredGlove->middleRoot    = 0;
+                desiredGlove->middleTip     = 0;
+                desiredGlove->ringRoot      = 1;
+                desiredGlove->ringTip       = 1;
+                desiredGlove->pinkyRoot     = 1;
+                desiredGlove->pinkyTip      = 1;
+
+                // Proceed on any input
+                ImGui::Text("Press any button to continue...");
+
+                if (ImGui::Button("Continue") || anyButtonPressedJoystick) {
+                    // Move to the next state
+                    state.uiState.calibrationState = CalibrationState_t::Fingers_DiscoverFlipoff;
+                }
+                break;
+            }
+            case CalibrationState_t::Fingers_DiscoverFlipoff:{
+                ImGui::Text("flipoff");
+                FOREACH_FINGER(COPY_FINGER_STATE, flipoff)
+                state.uiState.currentCalibration.fingers.thumbBase.flipoff = desiredGlove->thumbBaseRaw;
+
+                desiredGlove->thumbRoot     = 1;
+                desiredGlove->thumbTip      = 1;
+                desiredGlove->indexRoot     = 1;
+                desiredGlove->indexTip      = 1;
+                desiredGlove->middleRoot    = 0;
+                desiredGlove->middleTip     = 0;
+                desiredGlove->ringRoot      = 1;
+                desiredGlove->ringTip       = 1;
+                desiredGlove->pinkyRoot     = 1;
+                desiredGlove->pinkyTip      = 1;
+
+                // Proceed on any input
+                ImGui::Text("Press any button to continue...");
+
+                if (ImGui::Button("Continue") || anyButtonPressedJoystick) {
+                    // Move to the next state
+                    state.uiState.calibrationState = CalibrationState_t::Fingers_DiscoverPoint;
+                }
+                break;
+            }
+            case CalibrationState_t::Fingers_DiscoverPoint:{
+                ImGui::Text("point");
+                FOREACH_FINGER(COPY_FINGER_STATE, point)
+                state.uiState.currentCalibration.fingers.thumbBase.point = desiredGlove->thumbBaseRaw;
+
+                desiredGlove->thumbRoot     = 1;
+                desiredGlove->thumbTip      = 0;
+                desiredGlove->indexRoot     = 0;
+                desiredGlove->indexTip      = 0;
+                desiredGlove->middleRoot    = 1;
+                desiredGlove->middleTip     = 1;
+                desiredGlove->ringRoot      = 1;
+                desiredGlove->ringTip       = 1;
+                desiredGlove->pinkyRoot     = 1;
+                desiredGlove->pinkyTip      = 1;
+
+                // Proceed on any input
+                ImGui::Text("Press any button to continue...");
+
+                if (ImGui::Button("Continue") || anyButtonPressedJoystick) {
+                    // Move to the next state
+                    state.uiState.calibrationState = CalibrationState_t::Fingers_DiscoverSplayed;
+                }
                 break;
             }
             case CalibrationState_t::Fingers_DiscoverSplayed:

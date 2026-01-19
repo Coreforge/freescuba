@@ -35,6 +35,10 @@ enum class CalibrationState_t {
     Fingers_DiscoverNeutral = 1,
     Fingers_DiscoverClosed,
     Fingers_DiscoverSplayed,
+    Fingers_DiscoverHorns,
+    Fingers_DiscoverPeace,
+    Fingers_DiscoverFlipoff,
+    Fingers_DiscoverPoint,
     Fingers_DiscoverBackwardsBend,
     Fingers_FocusOnFinger,
 

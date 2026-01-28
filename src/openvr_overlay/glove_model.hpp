@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ceres/jet.h>
+#include <cmath>
 #include <vector>
 
 #include "../ipc_protocol.hpp"
@@ -24,8 +26,8 @@ public:
             JointCalibration root2;
             JointCalibration tip;
             JointCalibration splay;
-            t rootNeighbourCorrection1[2] = {0.1, 0.};
-            t rootNeighbourCorrection2[2] = {0.1, 0.};
+            t rootNeighbourCorrection1[2] = {0.0, 0.};
+            t rootNeighbourCorrection2[2] = {0.0, 0.};
         };
 
         FingerCalibration index;
@@ -126,7 +128,7 @@ public:
     template<typename i, typename c, typename o>
     static void apply(const typename GloveModel<i>::GloveValues& inputs, typename GloveModel<c>::GloveModelCalibration& calibration, typename GloveModel<o>::ModelOutputs& outputs){
 #define GET_SINGLE_SENSOR(finger, joint) \
-        ((inputs.finger.joint - calibration.finger.joint.zeroPoint) * calibration.finger.joint.factor)
+        (ceres::pow((inputs.finger.joint - calibration.finger.joint.zeroPoint) * calibration.finger.joint.factor, 1.))
 #define APPLY_SINGLE_SENSOR(finger, joint) \
         outputs.finger.joint = GET_SINGLE_SENSOR(finger, joint);
 
@@ -188,4 +190,6 @@ private:
         std::vector<GloveModel<double>::ModelOutputComponents>& components);
     GloveModel<double>::GloveModelCalibration modelCalibration;
     NNGloveModel* nn;
+
+    void manualCalibrate(const protocol::ContactGloveState_t::HandFingersCalibrationData_t& calibrationData);
 };

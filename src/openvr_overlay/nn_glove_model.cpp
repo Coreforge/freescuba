@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <flashlight/fl/nn/Init.h>
+#include <flashlight/fl/nn/modules/Activations.h>
 #include <flashlight/fl/nn/modules/Conv2D.h>
 #include <flashlight/fl/nn/modules/Linear.h>
 #include <flashlight/fl/optim/AdamOptimizer.h>
@@ -56,9 +57,11 @@ void NNGloveModel::train(std::vector<GloveModel<double>::GloveValues>& inputs,
 
     fl::Sequential model;
     model.add(fl::Linear(16, 42));
-    model.add(fl::ReLU());
+    model.add(fl::ELU());
     model.add(fl::Linear(42, 42));
-    model.add(fl::ReLU());
+    model.add(fl::Tanh());
+    model.add(fl::Linear(42, 42));
+    model.add(fl::ELU());
     model.add(fl::Linear(42, 16));
 
     auto loss = fl::MeanSquaredError();
@@ -72,7 +75,7 @@ void NNGloveModel::train(std::vector<GloveModel<double>::GloveValues>& inputs,
 
     fl::AverageValueMeter meter;
 
-    const size_t epochs = 1000;
+    const size_t epochs = 2000;
     const double min_loss = 5e-9;
     double lastLoss = NAN;
     for(size_t epoch = 0; epoch < epochs; epoch++){

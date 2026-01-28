@@ -6,6 +6,7 @@
 #include "configuration.hpp"
 #include "maths.hpp"
 #include <algorithm>
+#include <cstdint>
 
 #include "utils.h"
 

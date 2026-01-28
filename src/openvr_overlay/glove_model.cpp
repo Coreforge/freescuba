@@ -7,6 +7,7 @@
 #include <ceres/solver.h>
 #include <ceres/types.h>
 #include <cstdint>
+#include <functional>
 #include <iostream>
 #include <thread>
 #include <vector>
@@ -15,6 +16,8 @@
 
 #include "nn_glove_model.h"
 #include "cal_poses.h"
+
+#define INPUT_SCALE 4096.
 
 // currently, it's assumed that the structs this uses and arrays ceres views them as are packed the same.
 // If this turns out to not be reliably the case, conversion between struct and array has to be done manually (which is cleaner, but more effort)
@@ -81,8 +84,48 @@ struct GloveCostFunctor{
     GloveModel<double>::ModelOutputComponents components;
 };
 
+void GloveModelSolver::manualCalibrate(const protocol::ContactGloveState_t::HandFingersCalibrationData_t& calibrationData){
+    typedef GloveModel<double>::GloveModelCalibration Calibration_t;
+    typedef protocol::ContactGloveState_t GloveState_t;
+
+    // macros are neat, but also a bit annoying to deal with sometimes
+    std::function<void(Calibration_t::JointCalibration&, const GloveState_t::FingerJointCalibrationData_t&)>
+        jointBounds = [](Calibration_t::JointCalibration& out, const GloveState_t::FingerJointCalibrationData_t& cal){
+            out.zeroPoint = cal.rest / INPUT_SCALE;
+            out.factor = 1. / (cal.close / INPUT_SCALE - cal.rest / INPUT_SCALE);
+    };
+
+    // but neat for simpler things too
+    #define FINGER_BASE_CAL(finger, dummy) \
+    jointBounds(modelCalibration.finger.root1, calibrationData.finger.proximal); \
+    jointBounds(modelCalibration.finger.root2, calibrationData.finger.proximal2); \
+    jointBounds(modelCalibration.finger.tip, calibrationData.finger.distal);
+
+    FOREACH_FINGER(FINGER_BASE_CAL)
+    jointBounds(modelCalibration.thumbBase, calibrationData.thumbBase);
+    
+
+    #undef FINGER_BASE_CAL
+}
+
 void GloveModelSolver::calibrate(const protocol::ContactGloveState_t::HandFingersCalibrationData_t& calibrationData,
         std::vector<RecordedCalibrationPose>& additionalPoses){
+
+    #define PRINT_CALIB_FINGER_PARAM(finger, param) \
+    std::cout << #finger" "#param" " << modelCalibration.finger.param.zeroPoint << " " << modelCalibration.finger.param.factor << std::endl;
+    #define PRINT_CALIB_FINGER_CORR(finger) \
+    std::cout << #finger " neighbour correction " << modelCalibration.finger.rootNeighbourCorrection1[0] << \
+        " " << modelCalibration.finger.rootNeighbourCorrection1[1] << \
+        " " << modelCalibration.finger.rootNeighbourCorrection2[0] << \
+        " " << modelCalibration.finger.rootNeighbourCorrection2[1] << std::endl;
+
+    #define PRINT_CALIB_FINGER(finger, dummy) \
+    PRINT_CALIB_FINGER_PARAM(finger, root1) \
+    PRINT_CALIB_FINGER_PARAM(finger, root2) \
+    PRINT_CALIB_FINGER_PARAM(finger, tip) \
+    PRINT_CALIB_FINGER_PARAM(finger, splay) \
+    PRINT_CALIB_FINGER_CORR(finger)
+
     ceres::Problem problem;
     std::vector<GloveModel<double>::GloveValues> inputs;
     std::vector<GloveModel<double>::ModelOutputs> outputs;
@@ -92,17 +135,22 @@ void GloveModelSolver::calibrate(const protocol::ContactGloveState_t::HandFinger
 
     for(auto pose : additionalPoses){
         #define SCALE_FINGER(finger, dummy)\
-        pose.sensors.finger.root1 /= 4096.; \
-        pose.sensors.finger.root2 /= 4096.; \
-        pose.sensors.finger.tip /= 4096.;
+        pose.sensors.finger.root1 /= INPUT_SCALE; \
+        pose.sensors.finger.root2 /= INPUT_SCALE; \
+        pose.sensors.finger.tip /= INPUT_SCALE;
         FOREACH_FINGER(SCALE_FINGER)
         #undef SCALE_FINGER
 
-        pose.sensors.thumbBase /= 4096.;
+        pose.sensors.thumbBase /= INPUT_SCALE;
         outputs.emplace_back(pose.pose);
         inputs.emplace_back(pose.sensors);
         components.emplace_back(GloveModel<double>::ModelOutputComponents());
     }
+
+    manualCalibrate(calibrationData);
+    std::cout << "Initial calibration: " << std::endl;
+    FOREACH_FINGER(PRINT_CALIB_FINGER)
+    std::cout << "thumbBase " << modelCalibration.thumbBase.zeroPoint << " " << modelCalibration.thumbBase.factor << std::endl;
 
     nn = new NNGloveModel();
     nn->train(inputs, outputs);
@@ -123,39 +171,28 @@ void GloveModelSolver::calibrate(const protocol::ContactGloveState_t::HandFinger
     options.max_num_iterations = 200;
     options.linear_solver_type = ceres::LinearSolverType::SPARSE_NORMAL_CHOLESKY;
     ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
+    //ceres::Solve(options, &problem, &summary);
 
-    std::cout << summary.FullReport() << std::endl;
+    //std::cout << summary.FullReport() << std::endl;
 
     std::cout << "GloveModel calibratrion done" << std::endl;
 
-    #define PRINT_CALIB_FINGER_PARAM(finger, param) \
-    std::cout << #finger" "#param" " << modelCalibration.finger.param.zeroPoint << " " << modelCalibration.finger.param.factor << std::endl;
-    #define PRINT_CALIB_FINGER_CORR(finger) \
-    std::cout << #finger " neighbour correction " << modelCalibration.finger.rootNeighbourCorrection1[0] << \
-        " " << modelCalibration.finger.rootNeighbourCorrection1[1] << \
-        " " << modelCalibration.finger.rootNeighbourCorrection2[0] << \
-        " " << modelCalibration.finger.rootNeighbourCorrection2[1] << std::endl;
-
-    #define PRINT_CALIB_FINGER(finger, dummy) \
-    PRINT_CALIB_FINGER_PARAM(finger, root1) \
-    PRINT_CALIB_FINGER_PARAM(finger, root2) \
-    PRINT_CALIB_FINGER_PARAM(finger, tip) \
-    PRINT_CALIB_FINGER_PARAM(finger, splay) \
-    PRINT_CALIB_FINGER_CORR(finger)
+    
 
     FOREACH_FINGER(PRINT_CALIB_FINGER)
+    std::cout << "thumbBase " << modelCalibration.thumbBase.zeroPoint << " " << modelCalibration.thumbBase.factor << std::endl;
 }
 
 void GloveModelSolver::apply(protocol::ContactGloveState_t& state, bool useNN){
     GloveModel<double>::GloveValues inputs;
     GloveModel<double>::ModelOutputs outputs;
     #define COPY_FINGER(finger, dummy) \
-    inputs.finger.root1 = state.finger##Root1Raw / 4096.; \
-    inputs.finger.root2 = state.finger##Root2Raw / 4096.; \
-    inputs.finger.tip = state.finger##TipRaw / 4096.;
+    inputs.finger.root1 = state.finger##Root1Raw / INPUT_SCALE; \
+    inputs.finger.root2 = state.finger##Root2Raw / INPUT_SCALE; \
+    inputs.finger.tip = state.finger##TipRaw / INPUT_SCALE;
 
     FOREACH_FINGER(COPY_FINGER)
+    inputs.thumbBase = state.thumbBaseRaw / INPUT_SCALE;
 
     if(useNN){
         nn->run(inputs, outputs);
@@ -197,7 +234,7 @@ size_t GloveModelSolver::convertCalibrationData(const protocol::ContactGloveStat
     numPoses++;
 
     #define INPUT_JOINT_STATE(state, finger, sensor, joint) \
-    state##_inputs.finger.sensor = calibrationData.finger.joint.state / 4096.;
+    state##_inputs.finger.sensor = calibrationData.finger.joint.state / INPUT_SCALE;
 
     #define INPUT_FINGER_STATE(finger, state)\
     INPUT_JOINT_STATE(state, finger, root1, proximal) \
@@ -205,7 +242,7 @@ size_t GloveModelSolver::convertCalibrationData(const protocol::ContactGloveStat
     INPUT_JOINT_STATE(state, finger, tip, distal)
 
     #define INPUT_THUMB_BASE(state) \
-    state##_inputs.thumbBase = calibrationData.thumbBase.state / 4096.;
+    state##_inputs.thumbBase = calibrationData.thumbBase.state / INPUT_SCALE;
 
     // just makes it easier to use with other macros
     #define OUTPUT_FINGER(finger, state, joint, value) \

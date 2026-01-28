@@ -182,6 +182,7 @@ namespace protocol {
 		// No deadzone
 		float joystickXUnfiltered;
 		float joystickYUnfiltered;
+		float gestureGrip;
 
 		uint8_t gloveBatteryRaw;
 		uint8_t gloveBattery;

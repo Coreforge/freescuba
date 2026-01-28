@@ -7,8 +7,10 @@
 #include "maths.hpp"
 #include <algorithm>
 
+#include "utils.h"
+
 void ForwardDataToDriver(AppState& state, IPCClient& ipcClient);
-void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::high_resolution_clock::time_point gloveConnected, GloveModelSolver& solver);
+void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::high_resolution_clock::time_point gloveConnected, GloveModelSolver& solver, bool useNN);
 void UpdateGloveInputState(AppState& state);
 
 // Tell the GPU drivers to give the overlay priority over other apps, it's a driver after all
@@ -163,8 +165,8 @@ int main() {
         LoadConfiguration(state);
 
         // try ceres stuff
-        state.solverLeft.calibrate(state.gloveLeft.calibration.fingers);
-        state.solverRight.calibrate(state.gloveRight.calibration.fingers);
+        state.solverLeft.calibrate(state.gloveLeft.calibration.fingers, state.calPosesLeft);
+        state.solverRight.calibrate(state.gloveRight.calibration.fingers, state.calPosesRight);
 
         // Glove timing
         static std::chrono::high_resolution_clock::time_point gloveLeftConnected  = std::chrono::high_resolution_clock::time_point::min();
@@ -285,8 +287,8 @@ int main() {
                 TryCreateVrOverlay(state);
 
                 state.dongleAvailable = man.IsConnected();
-                ProcessGlove(state.gloveLeft, state.uiState.leftGloveBatteryBuffer, gloveLeftConnected, state.solverLeft);
-                ProcessGlove(state.gloveRight, state.uiState.rightGloveBatteryBuffer, gloveRightConnected, state.solverRight);
+                ProcessGlove(state.gloveLeft, state.uiState.leftGloveBatteryBuffer, gloveLeftConnected, state.solverLeft, state.useNN);
+                ProcessGlove(state.gloveRight, state.uiState.rightGloveBatteryBuffer, gloveRightConnected, state.solverRight, state.useNN);
                 UpdateGloveInputState(state);
 
                 doExecute = FreeScuba::Overlay::UpdateNativeWindow(state, s_overlayMainHandle);
@@ -318,7 +320,7 @@ int main() {
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define CLAMP(t,a,b) (MAX(MIN(t, b), a))
 
-void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::high_resolution_clock::time_point gloveConnected, GloveModelSolver& solver) {
+void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuffer& batteryRingBuffer, std::chrono::high_resolution_clock::time_point gloveConnected, GloveModelSolver& solver, bool useNN) {
 
     // Compute whether we should consider the glove as connected or not
     auto delta = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - gloveConnected);
@@ -430,7 +432,37 @@ void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuf
 
 #undef APPLY_FINGER_CALIBRATION
 
-    solver.apply(glove);
+        solver.apply(glove, useNN);
+        #define LIMIT_FINGER(finger, dummy) \
+        glove.finger##Root = Clamp(glove.finger##Root, -1.f, 1.f); \
+        glove.finger##Tip = Clamp(glove.finger##Tip, -1.f, 1.f); \
+        glove.finger##Splay = Clamp(glove.finger##Splay * glove.calibration.splay.finger.scale \
+             + glove.calibration.splay.finger.offset, -1.f, 1.f);
+
+        FOREACH_FINGER(LIMIT_FINGER)
+        glove.thumbBase = Clamp(glove.thumbBase, -1.f, 1.f);
+        #undef LIMIT_FINGER
+
+        // handle gestures
+        if(glove.gestureGrip == 0.f){
+            if(glove.middleRoot > glove.calibration.gestures.grip.activate && 
+                glove.middleTip > glove.calibration.gestures.grip.activate && 
+                glove.ringRoot > glove.calibration.gestures.grip.activate && 
+                glove.ringTip > glove.calibration.gestures.grip.activate && 
+                glove.pinkyRoot > glove.calibration.gestures.grip.activate && 
+                glove.pinkyTip > glove.calibration.gestures.grip.activate){
+                    glove.gestureGrip = 1.f;
+            }
+        } else {
+            if(glove.middleRoot < glove.calibration.gestures.grip.deactivate && 
+                glove.middleTip < glove.calibration.gestures.grip.deactivate && 
+                glove.ringRoot < glove.calibration.gestures.grip.deactivate && 
+                glove.ringTip < glove.calibration.gestures.grip.deactivate && 
+                glove.pinkyRoot < glove.calibration.gestures.grip.deactivate && 
+                glove.pinkyTip < glove.calibration.gestures.grip.deactivate){
+                    glove.gestureGrip = 0.f;
+            }
+        }
 
     } else {
         glove.gloveBattery = CONTACT_GLOVE_INVALID_BATTERY;

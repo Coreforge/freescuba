@@ -1,7 +1,11 @@
 #include "configuration.hpp"
+#include "cal_poses.h"
+#include "glove_model.hpp"
+#include "utils.h"
 
 #include <picojson.h>
 #include <sys/stat.h>
+#include <vector>
 #ifdef WIN32
 #include <shlobj_core.h>
 #else
@@ -235,6 +239,43 @@ void ReadGestures(protocol::ContactGloveState_t::CalibrationData_t::GestureCalib
 	} catch (std::runtime_error) {}
 }
 
+void ReadCalPoses(std::vector<RecordedCalibrationPose>& poses, picojson::object& jsonObj){
+	try {
+		picojson::array posesArray = jsonObj["calPoses"].get<picojson::array>();
+		for(auto& elem : posesArray){
+			picojson::object jsonPose = elem.get<picojson::object>();
+			picojson::array inputs = jsonPose["inputs"].get<picojson::array>();
+			picojson::array outputs = jsonPose["pose"].get<picojson::array>();
+			if(inputs.size() < 16 || outputs.size() < 16){
+				continue;
+			}
+
+			RecordedCalibrationPose pose;
+
+			size_t inputCtr = 0;
+			#define READ_FINGER_INPUTS(finger, dummy) \
+			pose.sensors.finger.root1 = inputs[inputCtr++].get<double>(); \
+			pose.sensors.finger.root2 = inputs[inputCtr++].get<double>(); \
+			pose.sensors.finger.tip = inputs[inputCtr++].get<double>();  
+
+			size_t outputCtr = 0;
+			#define READ_FINGER_OUTPUTS(finger, dummy) \
+			pose.pose.finger.root = outputs[outputCtr++].get<double>(); \
+			pose.pose.finger.tip = outputs[outputCtr++].get<double>(); \
+			pose.pose.finger.splay = outputs[outputCtr++].get<double>();  
+
+			FOREACH_FINGER(READ_FINGER_INPUTS)
+			pose.sensors.thumbBase = inputs[inputCtr++].get<double>();  
+			FOREACH_FINGER(READ_FINGER_OUTPUTS)
+			pose.pose.thumbBase = outputs[outputCtr++].get<double>();  
+			poses.emplace_back(pose);
+
+			#undef READ_FINGER_INPUTS
+			#undef READ_FINGER_OUTPUTS
+		}
+	} catch (std::runtime_error) {}
+}
+
 void LoadConfiguration(AppState& state) {
 	if (!s_directoriesExist) {
 		s_directoriesExist = EnsureDirectoriesExist();
@@ -272,6 +313,7 @@ void LoadConfiguration(AppState& state) {
 				ReadFingersCalibration(state.gloveLeft.calibration.fingers, leftGloveObj);
 				ReadSplayCalibration(state.gloveLeft.calibration.splay, leftGloveObj);
 				ReadGestures(state.gloveLeft.calibration.gestures, leftGloveObj);
+				ReadCalPoses(state.calPosesLeft, leftGloveObj);
 			} catch (std::runtime_error) {}
 
 			// Load right glove config
@@ -284,6 +326,7 @@ void LoadConfiguration(AppState& state) {
 				ReadFingersCalibration(state.gloveRight.calibration.fingers, rightGloveObj);
 				ReadSplayCalibration(state.gloveRight.calibration.splay, rightGloveObj);
 				ReadGestures(state.gloveRight.calibration.gestures, rightGloveObj);
+				ReadCalPoses(state.calPosesRight, rightGloveObj);
 			} catch (std::runtime_error) {}
 
 		} catch (std::runtime_error){}
@@ -426,6 +469,42 @@ void WriteThresholds(protocol::ContactGloveState_t::CalibrationData_t::GestureCa
 	jsonObj["gestures"].set<picojson::object>(gesturesRoot);
 }
 
+void WriteCalPoses(const std::vector<RecordedCalibrationPose>& poses, picojson::object& jsonObj){
+	std::vector<picojson::value> jsonPoses;
+	for(auto& pose : poses){
+		picojson::object jsonPose;
+		std::vector<picojson::value> inputs;
+		std::vector<picojson::value> outputs;
+		
+		#define WRITE_FINGER_INPUTS(finger, dummy) \
+		inputs.emplace_back(pose.sensors.finger.root1); \
+		inputs.emplace_back(pose.sensors.finger.root2); \
+		inputs.emplace_back(pose.sensors.finger.tip);
+
+		#define WRITE_FINGER_OUTPUTS(finger, dummy) \
+		outputs.emplace_back(pose.pose.finger.root); \
+		outputs.emplace_back(pose.pose.finger.tip); \
+		outputs.emplace_back(pose.pose.finger.splay);
+
+		FOREACH_FINGER(WRITE_FINGER_INPUTS)
+		inputs.emplace_back(pose.sensors.thumbBase);
+		FOREACH_FINGER(WRITE_FINGER_OUTPUTS)
+		outputs.emplace_back(pose.pose.thumbBase);
+
+		picojson::array jsonInputs(inputs);
+		picojson::array jsonOutputs(outputs);
+
+		jsonPose["pose"].set<picojson::array>(outputs);
+		jsonPose["inputs"].set<picojson::array>(jsonInputs);
+		jsonPoses.emplace_back(jsonPose);
+
+		#undef WRITE_FINGER_INPUTS
+		#undef WRITE_FINGER_OUTPUTS
+	}
+	picojson::array posesArray(jsonPoses);
+	jsonObj["calPoses"].set<picojson::array>(posesArray);
+}
+
 void SaveConfiguration(AppState& state) {
 	if (!s_directoriesExist) {
 		s_directoriesExist = EnsureDirectoriesExist();
@@ -449,6 +528,7 @@ void SaveConfiguration(AppState& state) {
 		WriteFingersCalibration(state.gloveLeft.calibration.fingers, gloveLeftConfig);
 		WriteSplayCalibration(state.gloveLeft.calibration.splay, gloveLeftConfig);
 		WriteThresholds(state.gloveLeft.calibration.gestures, gloveLeftConfig);
+		WriteCalPoses(state.calPosesLeft, gloveLeftConfig);
 
 		picojson::object gloveRightConfig;
 		
@@ -459,6 +539,7 @@ void SaveConfiguration(AppState& state) {
 		WriteFingersCalibration(state.gloveRight.calibration.fingers, gloveRightConfig);
 		WriteSplayCalibration(state.gloveRight.calibration.splay, gloveRightConfig);
 		WriteThresholds(state.gloveRight.calibration.gestures, gloveRightConfig);
+		WriteCalPoses(state.calPosesRight, gloveRightConfig);
 
 		config["left"].set<picojson::object>(gloveLeftConfig);
 		config["right"].set<picojson::object>(gloveRightConfig);

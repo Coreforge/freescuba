@@ -368,13 +368,14 @@ void SerialCommunicationManager::ListenerThread() {
     finish:
         if((waitcounter % 100) == 0){
             // this is just an easy way to send data for testing for now, until it's better understood
-
+            static bool activateLeft = false;
             // seems to be unreliable, enables the magnetra (on the left glove)
-            uint8_t cmd2[] = {0x16, 0x1, 0x1, 0x1, 0x1};  // sometimes makes the glove play the startup noise, changes packet 0x15
-            WriteCommandRaw(cmd2,sizeof(cmd2));
+                uint8_t cmd4[] = {0x16, (uint8_t)(activateLeft ? 0x1 : 0x2), 0x1, 0x1, 0x1};
+                WriteCommandRaw(cmd4, sizeof(cmd4));
             // and on the right glove (arg[0] seems to be the glove index then)
-            uint8_t cmd4[] = {0x16, 0x2, 0x1, 0x1, 0x1};
-            WriteCommandRaw(cmd4, sizeof(cmd4));
+                uint8_t cmd2[] = {0x16, (uint8_t)(!activateLeft ? 0x1 : 0x2), 0x1, 0x1, 0x1};  // sometimes makes the glove play the startup noise, changes packet 0x15
+                WriteCommandRaw(cmd2,sizeof(cmd2));
+            activateLeft = !activateLeft;
 
             uint8_t cmd1[] = {0x7, 0x0};
             //WriteCommandRaw(cmd1,sizeof(cmd1));
@@ -382,9 +383,9 @@ void SerialCommunicationManager::ListenerThread() {
             //WriteCommandRaw(cmd3,sizeof(cmd3));
 
             uint8_t cmd5[] = {0x18, 0x2, 0x1};
-            WriteCommandRaw(cmd5,sizeof(cmd5));
-            uint8_t cmd6[] = {0x18, 0x1, 0x0b};
-            WriteCommandRaw(cmd6,sizeof(cmd6));
+            //WriteCommandRaw(cmd5,sizeof(cmd5));
+            uint8_t cmd6[] = {0x18, 0x1, 0x1};
+            //WriteCommandRaw(cmd6,sizeof(cmd6));
             // triggers haptics on the right glove
             // 10 [b1, b2, duration (uint16, ms), b3]
             // b1 and b2 are fully unknown, b3 must be anything but 0
@@ -393,7 +394,7 @@ void SerialCommunicationManager::ListenerThread() {
             //printf("sent\n");
             // gets sent periodically. No idea what it means, but it keeps the dongle from crashing
             uint8_t keepalive[] = {0x1, 0x0, 0x0, 0xf0, 0x0, 0x0, 0xf0};
-            WriteCommandRaw(keepalive,sizeof(keepalive));
+            //WriteCommandRaw(keepalive,sizeof(keepalive));
         }
         // write anything we need to
         WriteQueued();
@@ -431,12 +432,13 @@ bool SerialCommunicationManager::ReceiveNextPacket(std::string& buff) {
         }
         //printf("read byte %d\n", (int)thisChar);
         // Delimeter is 0, since data is encoded using COBS
+        // something is fishy about either the cobs decoder or buffer (probably the string as buffer), valgrind no likey
         if (thisChar == 0) {
             // the last byte will be 0
-            uint8_t* pData = (uint8_t*)malloc(buff.size());
+            uint8_t* pData = (uint8_t*)malloc(buff.size()*2);
             if (pData != 0) {
                 std::memset(pData, 0, buff.size());
-                std::memcpy(pData, buff.c_str(), buff.size());
+                std::memcpy(pData, buff.data(), buff.size());
 
                 // Decode data
                 cobs::decode(pData, buff.size());

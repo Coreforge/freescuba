@@ -4,8 +4,10 @@
 #include "ipc_client.hpp"
 #include "ring_buffer.hpp"
 #include <openvr.h>
+#include <vector>
 
 #include "glove_model.hpp"
+#include "cal_poses.h"
 
 // #define BATTERY_WINDOW_SIZE 128
 constexpr uint8_t BATTERY_WINDOW_SIZE = 128;
@@ -39,6 +41,7 @@ enum class CalibrationState_t {
     Fingers_DiscoverPeace,
     Fingers_DiscoverFlipoff,
     Fingers_DiscoverPoint,
+    Fingers_MorePoses,
     Fingers_DiscoverBackwardsBend,
     Fingers_FocusOnFinger,
 
@@ -70,7 +73,11 @@ public:
     bool dongleAvailable;
 
     GloveModelSolver solverLeft;
+    std::vector<RecordedCalibrationPose> calPosesLeft;
     GloveModelSolver solverRight;
+    std::vector<RecordedCalibrationPose> calPosesRight;
+    bool useNN;
+
 
     IPCClient* ipcClient;
 
@@ -82,6 +89,7 @@ public:
 
         ScreenState_t page;
         CalibrationState_t calibrationState;
+        size_t calibrationPoseIdx;
         Handedness_t processingHandedness;
 
         // Buffer for the previous calibration state

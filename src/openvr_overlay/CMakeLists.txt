@@ -100,6 +100,8 @@ target_compile_definitions(FreeScubaOverlay
 find_package(Ceres REQUIRED)
 target_link_libraries(FreeScubaOverlay PRIVATE Ceres::ceres)
 
+find_package(flashlight REQUIRED)
+target_link_libraries(FreeScubaOverlay PRIVATE flashlight::flashlight)
 # Copy vrmanifest
 add_custom_command(
   TARGET FreeScubaOverlay POST_BUILD

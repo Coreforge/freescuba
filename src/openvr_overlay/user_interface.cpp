@@ -1,4 +1,5 @@
 #include "app_state.hpp"
+#include "cal_poses.h"
 #include "glove_model.hpp"
 #include "imgui_extensions.hpp"
 #define _USE_MATH_DEFINES
@@ -384,6 +385,8 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                     }
 
                     ImGui::Spacing();
+                    ImGui::Text("Grip");
+                    DRAW_FINGER_BEND_VALUE(glove.gestureGrip);
                 }
                 
                 if (ImGui::CollapsingHeader("Raw values")) {
@@ -738,15 +741,18 @@ void DrawCalibrateFingers(AppState& state) {
     {
         protocol::ContactGloveState_t* desiredGlove = nullptr;
         GloveModelSolver* solver;
+        std::vector<RecordedCalibrationPose>* calPoses;
         if (state.uiState.processingHandedness == Handedness_t::Left) {
             ImGui::Text("Calibrating Left Glove Fingers...");
             desiredGlove = &state.gloveLeft;
             solver = &state.solverLeft;
+            calPoses = &state.calPosesLeft;
         }
         else {
             ImGui::Text("Calibrating Right Glove Fingers...");
             desiredGlove = &state.gloveRight;
             solver = &state.solverRight;
+            calPoses = &state.calPosesRight;
         }
 
         // Handled here so that we don't get a blank frame
@@ -811,6 +817,12 @@ void DrawCalibrateFingers(AppState& state) {
                 desiredGlove->ringTip       = 0;
                 desiredGlove->pinkyRoot     = 0;
                 desiredGlove->pinkyTip      = 0;
+                desiredGlove->thumbSplay = 0;
+                desiredGlove->indexSplay = 0;
+                desiredGlove->middleSplay = 0;
+                desiredGlove->ringSplay = 0;
+                desiredGlove->pinkySplay = 0;
+                desiredGlove->thumbBase = 0;
 
                 // Proceed on any input
                 ImGui::Text("Press any button to continue...");
@@ -859,6 +871,12 @@ void DrawCalibrateFingers(AppState& state) {
                 desiredGlove->ringTip       = 1;
                 desiredGlove->pinkyRoot     = 1;
                 desiredGlove->pinkyTip      = 1;
+                desiredGlove->thumbSplay = 0;
+                desiredGlove->indexSplay = 0;
+                desiredGlove->middleSplay = 0;
+                desiredGlove->ringSplay = 0;
+                desiredGlove->pinkySplay = 0;
+                desiredGlove->thumbBase = 1;
 
                 // Proceed on any input
                 ImGui::Text("Press any button to continue...");
@@ -885,6 +903,12 @@ void DrawCalibrateFingers(AppState& state) {
                 desiredGlove->ringTip       = 1;
                 desiredGlove->pinkyRoot     = 0;
                 desiredGlove->pinkyTip      = 0;
+                desiredGlove->thumbSplay = 0;
+                desiredGlove->indexSplay = 0;
+                desiredGlove->middleSplay = 0;
+                desiredGlove->ringSplay = 0;
+                desiredGlove->pinkySplay = 0;
+                desiredGlove->thumbBase = 1;
 
                 // Proceed on any input
                 ImGui::Text("Press any button to continue...");
@@ -910,6 +934,12 @@ void DrawCalibrateFingers(AppState& state) {
                 desiredGlove->ringTip       = 1;
                 desiredGlove->pinkyRoot     = 1;
                 desiredGlove->pinkyTip      = 1;
+                desiredGlove->thumbSplay = 0;
+                desiredGlove->indexSplay = -1;
+                desiredGlove->middleSplay = 1;
+                desiredGlove->ringSplay = 0;
+                desiredGlove->pinkySplay = 0;
+                desiredGlove->thumbBase = 1;
 
                 // Proceed on any input
                 ImGui::Text("Press any button to continue...");
@@ -935,6 +965,12 @@ void DrawCalibrateFingers(AppState& state) {
                 desiredGlove->ringTip       = 1;
                 desiredGlove->pinkyRoot     = 1;
                 desiredGlove->pinkyTip      = 1;
+                desiredGlove->thumbSplay = 0;
+                desiredGlove->indexSplay = 0;
+                desiredGlove->middleSplay = 0;
+                desiredGlove->ringSplay = 0;
+                desiredGlove->pinkySplay = 0;
+                desiredGlove->thumbBase = 1;
 
                 // Proceed on any input
                 ImGui::Text("Press any button to continue...");
@@ -960,14 +996,67 @@ void DrawCalibrateFingers(AppState& state) {
                 desiredGlove->ringTip       = 1;
                 desiredGlove->pinkyRoot     = 1;
                 desiredGlove->pinkyTip      = 1;
+                desiredGlove->thumbSplay = 0;
+                desiredGlove->indexSplay = 0;
+                desiredGlove->middleSplay = 0;
+                desiredGlove->ringSplay = 0;
+                desiredGlove->pinkySplay = 0;
+                desiredGlove->thumbBase = 1;
 
                 // Proceed on any input
                 ImGui::Text("Press any button to continue...");
 
                 if (ImGui::Button("Continue") || anyButtonPressedJoystick) {
                     // Move to the next state
-                    state.uiState.calibrationState = CalibrationState_t::Fingers_DiscoverSplayed;
+                    state.uiState.calibrationState = CalibrationState_t::Fingers_MorePoses;
+                    state.uiState.calibrationPoseIdx = 0;
+                    calPoses->clear();
                 }
+                break;
+            }
+            case CalibrationState_t::Fingers_MorePoses:{
+                if(state.uiState.calibrationPoseIdx >= CalPoseCount){
+                    // empty frame, but prevents segfaults
+                    state.uiState.calibrationState = CalibrationState_t::Fingers_DiscoverSplayed;
+                    break;
+                }
+                ImGui::Text("Try to match the pose you can see in VR as close as possible.");
+                ImGui::Text("%s", CalPoses[state.uiState.calibrationPoseIdx].text);
+
+                #define COPY_SHOW_FINGER(finger, dummy) \
+                    desiredGlove->finger##Root = CalPoses[state.uiState.calibrationPoseIdx].pose.finger.root; \
+                    desiredGlove->finger##Tip = CalPoses[state.uiState.calibrationPoseIdx].pose.finger.tip; \
+                    desiredGlove->finger##Splay = CalPoses[state.uiState.calibrationPoseIdx].pose.finger.splay;
+
+                FOREACH_FINGER(COPY_SHOW_FINGER)
+                desiredGlove->thumbBase = CalPoses[state.uiState.calibrationPoseIdx].pose.thumbBase;
+                #undef COPY_SHOW_FINGER
+                
+                // Proceed on any input
+                ImGui::Text("Press any button to continue...");
+
+                if (ImGui::Button("Continue") || anyButtonPressedJoystick) {
+                    RecordedCalibrationPose recordedPose;
+
+                    #define COPY_FINGER_STATE2(finger, dummy) \
+                    recordedPose.sensors.finger.root1 = desiredGlove->finger##Root1Raw; \
+                    recordedPose.sensors.finger.root2 = desiredGlove->finger##Root2Raw; \
+                    recordedPose.sensors.finger.tip = desiredGlove->finger##TipRaw;
+
+                    FOREACH_FINGER(COPY_FINGER_STATE2)
+                    #undef COPY_FINGER_STATE2
+                    recordedPose.sensors.thumbBase = desiredGlove->thumbBaseRaw;
+                    recordedPose.pose = CalPoses[state.uiState.calibrationPoseIdx].pose;
+
+                    calPoses->emplace_back(recordedPose);
+
+                    state.uiState.calibrationPoseIdx++;
+                    if(state.uiState.calibrationPoseIdx >= CalPoseCount){
+                        // Move to the next state
+                        state.uiState.calibrationState = CalibrationState_t::Fingers_DiscoverSplayed;
+                    }
+                }
+
                 break;
             }
             case CalibrationState_t::Fingers_DiscoverSplayed:
@@ -994,6 +1083,24 @@ void DrawCalibrateFingers(AppState& state) {
                 state.uiState.currentCalibration.fingers.pinky.proximal.splayed	= desiredGlove->pinkyRoot1Raw;
                 state.uiState.currentCalibration.fingers.pinky.proximal2.splayed	= desiredGlove->pinkyRoot2Raw;
                 state.uiState.currentCalibration.fingers.pinky.distal.splayed		= desiredGlove->pinkyTipRaw;
+
+                desiredGlove->thumbRoot     = 0;
+                desiredGlove->thumbTip      = 0;
+                desiredGlove->indexRoot     = 0;
+                desiredGlove->indexTip      = 0;
+                desiredGlove->middleRoot    = 0;
+                desiredGlove->middleTip     = 0;
+                desiredGlove->ringRoot      = 0;
+                desiredGlove->ringTip       = 0;
+                desiredGlove->pinkyRoot     = 0;
+                desiredGlove->pinkyTip      = 0;
+                desiredGlove->thumbSplay = 1;
+                desiredGlove->indexSplay = 1;
+                desiredGlove->middleSplay = 1;
+                desiredGlove->ringSplay = 1;
+                desiredGlove->pinkySplay = 1;
+                desiredGlove->thumbBase = 0;
+
                 // Proceed on any input
                 ImGui::Text("Press any button to continue...");
 
@@ -1007,7 +1114,7 @@ void DrawCalibrateFingers(AppState& state) {
 
                     // Copy the new calibration back
                     memcpy(&desiredGlove->calibration, &state.uiState.currentCalibration, sizeof(protocol::ContactGloveState_t::CalibrationData_t));
-                    solver->calibrate(desiredGlove->calibration.fingers);
+                    solver->calibrate(desiredGlove->calibration.fingers, *calPoses);
                 }
                 break;
             }
@@ -1383,6 +1490,7 @@ void DrawUi(const bool isOverlay, AppState& state) {
 
     switch (state.uiState.page) {
         case ScreenState_t::ScreenStateViewData: {
+            ImGui::Checkbox("Use neural net for glove processing", &state.useNN);
             if (state.uiState.page == ScreenState_t::ScreenStateViewData) {
                 state.uiState.processingHandedness = Handedness_t::Left;
             }

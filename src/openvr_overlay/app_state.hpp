@@ -19,6 +19,7 @@ enum class ScreenState_t {
     ScreenStateCalibrateFingers,
     ScreenStateCalibrateFingersSingle,
     ScreenStateCalibrateOffset,
+    ScreenStateCalibrateSensorBounds,
 };
 
 enum class Handedness_t {
@@ -53,6 +54,9 @@ enum class CalibrationState_t {
     // Stages for trigger calibration
     Trigger_DiscoverNeutral = 1,
     Trigger_DiscoverClick,
+
+    // Stages for sensor bounds calibration
+    Bounds_Measure = 1,
 };
 
 enum class CalibrationFinger_t {

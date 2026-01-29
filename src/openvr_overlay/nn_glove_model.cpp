@@ -76,7 +76,7 @@ void NNGloveModel::train(std::vector<GloveModel<double>::GloveValues>& inputs,
     fl::AverageValueMeter meter;
 
     const size_t epochs = 2000;
-    const double min_loss = 5e-9;
+    const double min_loss = 5e-12;
     double lastLoss = NAN;
     for(size_t epoch = 0; epoch < epochs; epoch++){
         meter.reset();

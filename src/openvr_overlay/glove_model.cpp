@@ -17,7 +17,7 @@
 #include "nn_glove_model.h"
 #include "cal_poses.h"
 
-#define INPUT_SCALE 4096.
+#define INPUT_SCALE 1.
 
 // currently, it's assumed that the structs this uses and arrays ceres views them as are packed the same.
 // If this turns out to not be reliably the case, conversion between struct and array has to be done manually (which is cleaner, but more effort)
@@ -187,12 +187,12 @@ void GloveModelSolver::apply(protocol::ContactGloveState_t& state, bool useNN){
     GloveModel<double>::GloveValues inputs;
     GloveModel<double>::ModelOutputs outputs;
     #define COPY_FINGER(finger, dummy) \
-    inputs.finger.root1 = state.finger##Root1Raw / INPUT_SCALE; \
-    inputs.finger.root2 = state.finger##Root2Raw / INPUT_SCALE; \
-    inputs.finger.tip = state.finger##TipRaw / INPUT_SCALE;
+    inputs.finger.root1 = CAL_BOUNDS_JOINT(state.finger##Root1Raw / INPUT_SCALE, finger, proximal, state.calibration.fingers); \
+    inputs.finger.root2 = CAL_BOUNDS_JOINT(state.finger##Root2Raw / INPUT_SCALE, finger, proximal2, state.calibration.fingers); \
+    inputs.finger.tip = CAL_BOUNDS_JOINT(state.finger##TipRaw / INPUT_SCALE, finger, distal, state.calibration.fingers);
 
     FOREACH_FINGER(COPY_FINGER)
-    inputs.thumbBase = state.thumbBaseRaw / INPUT_SCALE;
+    inputs.thumbBase = CAL_VALUE_BOUNDS(state.thumbBaseRaw / INPUT_SCALE, state.calibration.fingers.thumbBase);
 
     if(useNN){
         nn->run(inputs, outputs);

@@ -192,14 +192,16 @@ namespace protocol {
 
 		// Calibration for a single joint on the fingers
 		struct FingerJointCalibrationData_t {
-			uint16_t rest;	// Rest pose
-			uint16_t bend;	// Bend pose (fingers bent away from the palm, backwards)
-			uint16_t close; // Close pose (fingers bent towards the palm)
-			uint16_t splayed;	// fingers flat, but splayed apart
-			uint16_t horns;
-			uint16_t peace;
-			uint16_t flipoff;
-			uint16_t point;
+			float rest;	// Rest pose
+			float bend;	// Bend pose (fingers bent away from the palm, backwards)
+			float close; // Close pose (fingers bent towards the palm)
+			float splayed;	// fingers flat, but splayed apart
+			float horns;
+			float peace;
+			float flipoff;
+			float point;
+			uint16_t max;
+			uint16_t min;
 		};
 
 		struct FingerCalibrationData_t {

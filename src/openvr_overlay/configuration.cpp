@@ -154,7 +154,7 @@ void ReadFingerJointCalibration(protocol::ContactGloveState_t::FingerJointCalibr
 		// state.bend		= (uint16_t) jsonObj["bend"].get<double>();
 		// state.close		= (uint16_t) jsonObj["close"].get<double>();
 		#define READ_STATE(jointstate) \
-		TryReadUint16(state.jointstate,	jsonObj, #jointstate);
+		TryReadFloat(state.jointstate,	jsonObj, #jointstate);
 
 		READ_STATE(rest)
 		READ_STATE(bend)
@@ -164,6 +164,8 @@ void ReadFingerJointCalibration(protocol::ContactGloveState_t::FingerJointCalibr
 		READ_STATE(peace)
 		READ_STATE(flipoff)
 		READ_STATE(point)
+		TryReadUint16(state.max,	jsonObj, "max");
+		TryReadUint16(state.min,	jsonObj, "min");
 	} catch (std::runtime_error) {}
 }
 
@@ -396,6 +398,8 @@ void WriteFingerJointCalibration(protocol::ContactGloveState_t::FingerJointCalib
 	WRITE_STATE(peace)
 	WRITE_STATE(flipoff)
 	WRITE_STATE(point)
+	WRITE_STATE(max)
+	WRITE_STATE(min)
 }
 
 void WriteFingersCalibration(protocol::ContactGloveState_t::HandFingersCalibrationData_t& state, picojson::object& jsonObj) {

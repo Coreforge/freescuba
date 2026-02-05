@@ -419,7 +419,6 @@ void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuf
         APPLY_FINGER_CALIBRATION(thumbBase,      thumbBase);
         APPLY_FINGER_BASE_CALIBRATION(indexRoot,     index.proximal);
         APPLY_FINGER_CALIBRATION_SPLAY(index);
-        glove.indexSplay *= -1.f;
         APPLY_FINGER_CALIBRATION(indexTip,      index.distal);
         APPLY_FINGER_BASE_CALIBRATION(middleRoot,    middle.proximal);
         APPLY_FINGER_CALIBRATION_SPLAY(middle);
@@ -434,14 +433,15 @@ void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuf
 #undef APPLY_FINGER_CALIBRATION
 
         solver.apply(glove, useNN);
-        #define LIMIT_FINGER(finger, dummy) \
-        glove.finger##Root = Clamp(glove.finger##Root, -1.f, 1.f); \
-        glove.finger##Tip = Clamp(glove.finger##Tip, -1.f, 1.f); \
+        #define LIMIT_FINGER(finger, min_val, max_val, splaymin, splaymax) \
+        glove.finger##Root = Clamp(glove.finger##Root, min_val, max_val); \
+        glove.finger##Tip = Clamp(glove.finger##Tip, min_val, max_val); \
         glove.finger##Splay = Clamp(glove.finger##Splay * glove.calibration.splay.finger.scale \
-             + glove.calibration.splay.finger.offset, -1.f, 1.f);
+             + glove.calibration.splay.finger.offset, splaymin, splaymax);
 
-        FOREACH_FINGER(LIMIT_FINGER)
-        glove.thumbBase = Clamp(glove.thumbBase, -1.f, 1.f);
+        glove.indexSplay *= -1.f;
+        FOREACH_FINGER(LIMIT_FINGER, -0.f, 1.f, -1.f, 1.f)
+        glove.thumbBase = Clamp(glove.thumbBase, 0.f, 1.f);
         #undef LIMIT_FINGER
 
         // handle gestures
@@ -456,11 +456,11 @@ void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuf
             }
         } else {
             if(glove.middleRoot < glove.calibration.gestures.grip.deactivate && 
-                glove.middleTip < glove.calibration.gestures.grip.deactivate && 
+                //glove.middleTip < glove.calibration.gestures.grip.deactivate && 
                 glove.ringRoot < glove.calibration.gestures.grip.deactivate && 
-                glove.ringTip < glove.calibration.gestures.grip.deactivate && 
-                glove.pinkyRoot < glove.calibration.gestures.grip.deactivate && 
-                glove.pinkyTip < glove.calibration.gestures.grip.deactivate){
+                //glove.ringTip < glove.calibration.gestures.grip.deactivate && 
+                glove.pinkyRoot < glove.calibration.gestures.grip.deactivate){
+                //glove.pinkyTip < glove.calibration.gestures.grip.deactivate){
                     glove.gestureGrip = 0.f;
             }
         }

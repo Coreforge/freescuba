@@ -117,7 +117,9 @@ void GloveModelSolver::calibrate(const protocol::ContactGloveState_t::HandFinger
     std::cout << #finger " neighbour correction " << modelCalibration.finger.rootNeighbourCorrection1[0] << \
         " " << modelCalibration.finger.rootNeighbourCorrection1[1] << \
         " " << modelCalibration.finger.rootNeighbourCorrection2[0] << \
-        " " << modelCalibration.finger.rootNeighbourCorrection2[1] << std::endl;
+        " " << modelCalibration.finger.rootNeighbourCorrection2[1] << \
+        " " << modelCalibration.finger.rootThumbBaseCorrection[0] << \
+        " " << modelCalibration.finger.rootThumbBaseCorrection[1] << std::endl;
 
     #define PRINT_CALIB_FINGER(finger, dummy) \
     PRINT_CALIB_FINGER_PARAM(finger, root1) \

@@ -440,18 +440,17 @@ void ProcessGlove(protocol::ContactGloveState_t& glove, MostCommonElementRingBuf
              + glove.calibration.splay.finger.offset, splaymin, splaymax);
 
         glove.indexSplay *= -1.f;
-        FOREACH_FINGER(LIMIT_FINGER, -0.f, 1.f, -1.f, 1.f)
-        glove.thumbBase = Clamp(glove.thumbBase, 0.f, 1.f);
+        FOREACH_FINGER(LIMIT_FINGER, -0.1f, 1.f, -1.f, 1.f)
+        glove.thumbBase = Clamp(glove.thumbBase, -0.3f, 1.f);
         #undef LIMIT_FINGER
 
         // handle gestures
         if(glove.gestureGrip == 0.f){
             if(glove.middleRoot > glove.calibration.gestures.grip.activate && 
-                glove.middleTip > glove.calibration.gestures.grip.activate && 
+                glove.middleTip > glove.calibration.gestures.grip.activate*0.6f && 
                 glove.ringRoot > glove.calibration.gestures.grip.activate && 
-                glove.ringTip > glove.calibration.gestures.grip.activate && 
-                glove.pinkyRoot > glove.calibration.gestures.grip.activate && 
-                glove.pinkyTip > glove.calibration.gestures.grip.activate){
+                glove.ringTip > glove.calibration.gestures.grip.activate*0.6f && 
+                glove.pinkyRoot > glove.calibration.gestures.grip.activate){
                     glove.gestureGrip = 1.f;
             }
         } else {

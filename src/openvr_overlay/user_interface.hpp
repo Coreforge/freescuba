@@ -5,7 +5,7 @@
 #include "imgui_extensions.hpp"
 #include "app_state.hpp"
 
-void SetupImgui();
+void SetupImgui(AppState& state);
 void CleanupImgui();
 void DrawUi(const bool isOverlay, AppState& state);
 

@@ -282,7 +282,7 @@ int main() {
             }
         );
 
-        if (FreeScuba::Overlay::StartWindow()) {
+        if (FreeScuba::Overlay::StartWindow(state)) {
             bool doExecute = true;
             while (doExecute) {
                 TryCreateVrOverlay(state);

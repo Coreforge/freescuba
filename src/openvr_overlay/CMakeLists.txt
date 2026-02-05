@@ -98,10 +98,18 @@ target_compile_definitions(FreeScubaOverlay
 )
 
 find_package(Ceres REQUIRED)
-target_link_libraries(FreeScubaOverlay PRIVATE Ceres::ceres)
+find_package(glm REQUIRED)
+find_package(GLEW REQUIRED)
+target_link_libraries(FreeScubaOverlay PRIVATE Ceres::ceres glm::glm GLEW)
 
 find_package(flashlight REQUIRED)
 target_link_libraries(FreeScubaOverlay PRIVATE flashlight::flashlight)
+
+# copy shaders
+configure_file(${CMAKE_CURRENT_LIST_DIR}/handview/cubes.fs ${CMAKE_BINARY_DIR}/artifacts/cubes.fs)
+configure_file(${CMAKE_CURRENT_LIST_DIR}/handview/cubes.vs ${CMAKE_BINARY_DIR}/artifacts/cubes.vs)
+
+
 # Copy vrmanifest
 add_custom_command(
   TARGET FreeScubaOverlay POST_BUILD

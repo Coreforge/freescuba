@@ -9,6 +9,8 @@
 #include "glove_model.hpp"
 #include "cal_poses.h"
 
+#include "handview/HandView.hpp"
+
 // #define BATTERY_WINDOW_SIZE 128
 constexpr uint8_t BATTERY_WINDOW_SIZE = 128;
 
@@ -90,6 +92,9 @@ public:
 
     // Ui State
     struct UiState_t {
+
+        HandView* handViewerLeft;
+        HandView* handViewerRight;
 
         ScreenState_t page;
         CalibrationState_t calibrationState;

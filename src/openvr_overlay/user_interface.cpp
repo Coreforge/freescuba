@@ -1,6 +1,7 @@
 #include "app_state.hpp"
 #include "cal_poses.h"
 #include "glove_model.hpp"
+#include "handview/HandView.hpp"
 #include "imgui_extensions.hpp"
 #define _USE_MATH_DEFINES
 #include <openvr.h>
@@ -22,7 +23,7 @@ ImFont* fontRegular = nullptr;
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define CLAMP(t,a,b) (MAX(MIN(t, b), a))
 
-void SetupImgui() {
+void SetupImgui(AppState& state) {
     // @TODO: ImGui style here
 
     ImGuiIO& io = ImGui::GetIO();
@@ -65,6 +66,9 @@ void SetupImgui() {
     fontBold    = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeuib.ttf", FONT_SIZE); // Segoe UI Bold
     fontLight   = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeuil.ttf", FONT_SIZE); // Segoe UI Light
     #endif
+
+    state.uiState.handViewerLeft = new HandView(true);
+    state.uiState.handViewerRight = new HandView(false);
 }
 void CleanupImgui() {
 
@@ -96,7 +100,7 @@ void DrawJoystickInput(const float valueX, const float valueY, const float deadz
     ImGui::Dummy(ImVec2(BOX_SIZE, BOX_SIZE));
 }
 
-void DrawGlove(const std::string name, const std::string id, protocol::ContactGloveState_t& glove, AppState& state) {
+void DrawGlove(const std::string name, const std::string id, protocol::ContactGloveState_t& glove, AppState& state, bool isLeft) {
 
     std::string panelTitle = name;
     if (glove.isConnected) {
@@ -504,6 +508,18 @@ void DrawGlove(const std::string name, const std::string id, protocol::ContactGl
                 ImGui::PopID();
             }
             ImGui::Spacing();
+
+            if(isLeft){
+                if(state.uiState.handViewerLeft){
+                    state.uiState.handViewerLeft->setGloveState(glove);
+                    state.uiState.handViewerLeft->drawImGui();
+                }
+            } else {
+                if(state.uiState.handViewerRight){
+                    state.uiState.handViewerRight->setGloveState(glove);
+                    state.uiState.handViewerRight->drawImGui();
+                }
+            }
         }
     }
     ImGui::EndGroupPanel();
@@ -1523,7 +1539,6 @@ void DrawUi(const bool isOverlay, AppState& state) {
 #ifdef _DEBUG
     ImGui::ShowDemoWindow();
 #endif
-
     const ImGuiIO& io = ImGui::GetIO();
 
     // Lock window to full screen
@@ -1544,11 +1559,11 @@ void DrawUi(const bool isOverlay, AppState& state) {
             if (state.uiState.page == ScreenState_t::ScreenStateViewData) {
                 state.uiState.processingHandedness = Handedness_t::Left;
             }
-            DrawGlove("Left Glove", "glove_left", state.gloveLeft, state);
+            DrawGlove("Left Glove", "glove_left", state.gloveLeft, state, true);
             if (state.uiState.page == ScreenState_t::ScreenStateViewData) {
                 state.uiState.processingHandedness = Handedness_t::Right;
             }
-            DrawGlove("Right Glove", "glove_right", state.gloveRight, state);
+            DrawGlove("Right Glove", "glove_right", state.gloveRight, state, false);
 
             // @TODO: Break settings into function / tab
             ImGui::Spacing();

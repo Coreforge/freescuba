@@ -18,7 +18,7 @@ namespace FreeScuba {
 	namespace Overlay {
 
 		// Functions to create and destroy an overlay for the window
-		const bool StartWindow();
+		const bool StartWindow(AppState& state);
 		void DestroyWindow();
 		const bool UpdateNativeWindow(AppState& state, const vr::VROverlayHandle_t overlayMainHandle);
 	}

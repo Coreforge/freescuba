@@ -1,3 +1,7 @@
+#ifndef WIN32
+#include <GL/glew.h>
+#endif
+
 #include "overlay_app.hpp"
 #include "user_interface.hpp"
 #include "resource.h"
@@ -469,17 +473,21 @@ namespace FreeScuba {
         GLFWwindow* window;
         double lastFrameStartTime = 0;
 
-        const bool StartWindow() {
+        const bool StartWindow(AppState& state) {
             glfwSetErrorCallback(glfwErrorCallback);
             if(!glfwInit()){
                 return false;
             }
             glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
             window = glfwCreateWindow(1280,800, "Free Scuba Settings", nullptr, nullptr);
             glfwMakeContextCurrent(window);
             glfwSwapInterval(1);
 
+            if(glewInit() != GLEW_OK){
+                return false;
+            }
+            
             // Setup Dear ImGui context
             IMGUI_CHECKVERSION();
             ImGui::CreateContext();
@@ -493,9 +501,9 @@ namespace FreeScuba {
 
             // Setup Platform/Renderer backends
             ImGui_ImplGlfw_InitForOpenGL(window, true);
-            ImGui_ImplOpenGL3_Init("#version 130");
+            ImGui_ImplOpenGL3_Init("#version 330");
 
-            SetupImgui();
+            SetupImgui(state);
 
             lastFrameStartTime = GetSystemTimeSeconds();
 

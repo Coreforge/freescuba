@@ -1117,6 +1117,17 @@ void DrawCalibrateFingers(AppState& state) {
             // Should not be necessary
 
         }
+        if(state.uiState.processingHandedness == Handedness_t::Left){
+                if(state.uiState.handViewerLeft){
+                    state.uiState.handViewerLeft->setGloveState(*desiredGlove);
+                    state.uiState.handViewerLeft->drawImGui();
+                }
+            } else {
+                if(state.uiState.handViewerRight){
+                    state.uiState.handViewerRight->setGloveState(*desiredGlove);
+                    state.uiState.handViewerRight->drawImGui();
+                }
+            }
     }
     ImGui::EndGroupPanel();
 }

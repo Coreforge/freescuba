@@ -20,5 +20,5 @@ void main(){
     gl_Position = projectionMat * cameraMat * transformMat * pos;
     
     gColor = colour;
-    gNormal = mat3(transformMat) * vNormal;
+    gNormal = normalize(mat3(cameraMat) * mat3(transformMat) * vNormal);
 }
